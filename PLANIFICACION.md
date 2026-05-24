@@ -1,21 +1,21 @@
-# Plan de Trabajo Estructurado: Resolución del Reto Técnico (24 Horas)
+# Plan de Trabajo Estructurado: Resolución del Reto Técnico (12 Horas Activas)
 
-Este documento define la metodología y el flujo de trabajo paso a paso que seguiremos desde el momento en que se reciba el reto técnico. El objetivo es garantizar la máxima calidad de código, rigor científico, reproducibilidad y modularidad dentro del límite de 24 horas.
+Este documento define la metodología y el flujo de trabajo paso a paso que seguiremos desde el momento en que se reciba el reto técnico. El objetivo es garantizar la máxima calidad de código, rigor científico, reproducibilidad y modularidad dentro de un bloque enfocado de **12 horas de trabajo activo**, permitiendo entregar el proyecto el lunes por la noche y asegurar un descanso óptimo antes de la entrevista técnica con **Airbus Helicopters** el martes a las 8:00 AM.
 
 ---
 
-## ⏱️ Cronograma de Ejecución Propuesto
+## ⏱️ Cronograma de Ejecución Propuesto (12 Horas)
 
-El tiempo se divide en fases consecutivas, asegurando tener un producto funcional (MVP) muy temprano para luego iterar y pulir.
+El tiempo se divide en fases eficientes y consecutivas, priorizando un MVP rápido para poder probar e iterar con calma.
 
 ```mermaid
 graph LR
-    A[Fase 1: Ingesta<br>Requisitos<br>0h - 1h] --> B[Fase 2: Diseño<br>Comparar Enfoques<br>1h - 3h]
-    B --> C[Fase 3: MVP<br>Pipeline e IA<br>3h - 8h]
-    C --> D[Fase 4: Tests<br>Pruebas y Límites<br>8h - 12h]
-    D --> E[Fase 5: Métricas<br>Observabilidad<br>12h - 16h]
-    E --> F[Fase 6: Docs<br>README.md<br>16h - 20h]
-    F --> G[Fase 7: Cierre<br>Revisión y Entrega<br>20h - 24h]
+    A[Fase 1: Ingesta<br>Requisitos<br>0h - 1h] --> B[Fase 2: Diseño<br>Comparar Enfoques<br>1h - 2h]
+    B --> C[Fase 3: MVP<br>Pipeline e IA<br>2h - 6h]
+    C --> D[Fase 4: Tests<br>Pruebas y Límites<br>6h - 8h]
+    D --> E[Fase 5: Métricas<br>Observabilidad<br>8h - 10h]
+    E --> F[Fase 6: Docs<br>README.md<br>10h - 11h]
+    F --> G[Fase 7: Cierre<br>Revisión y Entrega<br>11h - 12h]
 
     style A fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
     style C fill:#fff3e0,stroke:#f57c00,stroke-width:2px
@@ -35,24 +35,24 @@ graph LR
   * **Restricciones**: Límites de hardware, APIs, formatos de datos.
   * **Métricas de Éxito**: Cómo se medirá el desempeño (ej. exactitud, latencia, fidelidad de respuesta).
 
-### 📐 Fase 2: Análisis y Diseño Arquitectural (Hora 1 - 3)
+### 📐 Fase 2: Análisis y Diseño Arquitectural (Hora 1 - 2)
 * **Acción**: Investigar y comparar enfoques antes de escribir código.
 * **Contenido**:
   * **Comparativa de Arquitecturas**: Plantear al menos 2 formas de resolver el reto (ej. RAG básico vs RAG jerárquico; o Red Convolucional simple vs Transfer Learning con ResNet).
   * **Matriz de Decisión**: Comparar tecnologías candidatas (ej. FAISS vs Chroma; LangChain vs LlamaIndex) en función de:
-    1. Tiempo de desarrollo en 24h.
+    1. Tiempo de desarrollo en un bloque de 12h.
     2. Rendimiento local (CPU/MPS).
     3. Simplicidad de instalación.
   * **Justificación**: Explicar por escrito en `REQUISITOS.md` por qué se elige el enfoque final.
 
-### 🛠️ Fase 3: Construcción del MVP y Pipeline de Datos (Hora 3 - 8)
+### 🛠️ Fase 3: Construcción del MVP y Pipeline de Datos (Hora 2 - 6)
 * **Acción**: Desarrollar el núcleo de la solución de forma modular bajo la carpeta `src/`.
 * **Pasos**:
   1. **Pipeline de Ingesta**: Carga, limpieza y formateo de datos.
   2. **Pipeline de Modelado/IA**: Carga del modelo, embeddings, configuración del indexador vectorial o definición de la red en PyTorch.
   3. **Script Principal (`main.py`)**: Script orquestador que conecte todo el flujo.
 
-### 🧪 Fase 4: Pruebas Unitarias y Casos Límite (Hora 8 - 12)
+### 🧪 Fase 4: Pruebas Unitarias y Casos Límite (Hora 6 - 8)
 * **Acción**: Implementar pruebas automáticas para demostrar robustez a nivel de producción.
 * **Pasos**:
   * Configurar `pytest` en la carpeta `tests/`.
@@ -61,14 +61,14 @@ graph LR
     * **Casos Límite (Edge Cases)**: Inputs vacíos, strings excesivamente largos, datos nulos en DataFrames, formato de datos no compatible.
     * **Pruebas de Integración**: Validar que el recuperador vectorial devuelve documentos coherentes con la consulta.
 
-### 📊 Fase 5: Observabilidad y Evaluación (Hora 12 - 16)
+### 📊 Fase 5: Observabilidad y Evaluación (Hora 8 - 10)
 * **Acción**: Instrumentar el código para medir su comportamiento.
 * **Pasos**:
   * **Logging**: Implementar `logging` estructurado en consola y archivo `.log`.
   * **Métricas de Rendimiento**: Registrar tiempos de ejecución de las partes críticas (ej. tiempo de indexación, latencia del LLM por token, tiempo de entrenamiento por época).
   * **Reporte de Evaluación**: Generar un script que ejecute una batería de pruebas de evaluación (ej. matriz de confusión para clasificación; porcentaje de recuperación correcta para RAG) y exporte las gráficas.
 
-### ✍️ Fase 6: Documentación y Empaquetado (Hora 16 - 20)
+### ✍️ Fase 6: Documentación y Empaquetado (Hora 10 - 11)
 * **Acción**: Crear un `README.md` impecable orientado a los evaluadores técnicos.
 * **Secciones Obligatorias**:
   1. **Descripción del Proyecto**: Propósito y contexto.
@@ -76,9 +76,9 @@ graph LR
   3. **Instrucciones de Ejecución**: Comandos claros para entrenar, evaluar o consultar el sistema.
   4. **Decisiones de Diseño**: Por qué se estructuró así el código y por qué se eligieron esas librerías.
   5. **Métricas de Evaluación**: Resultados obtenidos.
-  6. **Siguientes Pasos**: Qué se mejoraría con más de 24 horas (demuestra visión de producto).
+  6. **Siguientes Pasos**: Qué se mejoraría con más de 12 horas (demuestra visión de producto).
 
-### 🚀 Fase 7: Revisión de Código y Entrega (Hora 20 - 24)
+### 🚀 Fase 7: Revisión de Código y Entrega (Hora 11 - 12)
 * **Acción**: Asegurar la calidad estética y funcional del código.
 * **Pasos**:
   * Ejecutar formateadores y linters (`black`, `flake8`, `mypy`).
