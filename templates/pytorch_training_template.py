@@ -19,6 +19,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Usar backend no interactivo para entornos sin GUI (headless)
 import matplotlib.pyplot as plt
 from typing import Tuple, List
 
@@ -216,7 +218,7 @@ class Trainer:
         plt.tight_layout()
         plt.savefig("training_curves.png")
         print("[+] Gráficas de entrenamiento guardadas como 'training_curves.png'")
-        plt.show()
+        # plt.show()  # Descomentar si se ejecuta en local con interfaz gráfica
 
 
 # ==========================================
