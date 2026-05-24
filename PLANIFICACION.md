@@ -9,25 +9,18 @@ Este documento define la metodología y el flujo de trabajo paso a paso que segu
 El tiempo se divide en fases consecutivas, asegurando tener un producto funcional (MVP) muy temprano para luego iterar y pulir.
 
 ```mermaid
-gantt
-    title Cronograma de Trabajo (24 Horas)
-    dateFormat  HH:mm
-    axisFormat  %H:%M
-    
-    section Ingesta
-    Requisitos e Inicialización : active, t1, 00:00, 1h
-    section Diseño
-    Estudio y Comparación de Enfoques : t2, after t1, 2h
-    section MVP
-    Construcción del Pipeline e IA : t3, after t2, 5h
-    section Tests
-    Pruebas Unitarias y Casos Límite : t4, after t3, 4h
-    section Métricas
-    Observabilidad y Evaluación : t5, after t4, 4h
-    section Docs
-    README.md y Documentación Final : t6, after t5, 4h
-    section Cierre
-    Revisión de Código y Entrega : t7, after t6, 4h
+graph LR
+    A[Fase 1: Ingesta<br>Requisitos<br>0h - 1h] --> B[Fase 2: Diseño<br>Comparar Enfoques<br>1h - 3h]
+    B --> C[Fase 3: MVP<br>Pipeline e IA<br>3h - 8h]
+    C --> D[Fase 4: Tests<br>Pruebas y Límites<br>8h - 12h]
+    D --> E[Fase 5: Métricas<br>Observabilidad<br>12h - 16h]
+    E --> F[Fase 6: Docs<br>README.md<br>16h - 20h]
+    F --> G[Fase 7: Cierre<br>Revisión y Entrega<br>20h - 24h]
+
+    style A fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    style C fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style D fill:#ede7f6,stroke:#5e35b1,stroke-width:2px
+    style G fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
 ```
 
 ---
