@@ -1,0 +1,32 @@
+# Entornos Virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Python compilado y cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# Archivos de modelos y checkpoints
+*.pth
+*.pt
+*.bin
+*.pkl
+best_model.pth
+
+# Visualizaciones y outputs locales
+training_curves.png
+temp_data.txt
+results/
+
+# Carpetas de datos locales
+data/
