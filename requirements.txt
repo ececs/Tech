@@ -21,3 +21,5 @@ sentence-transformers
 langchain
 langchain-community
 faiss-cpu
+trafilatura
+
