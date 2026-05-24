@@ -34,3 +34,7 @@ data/
 # Datos privados de agentes
 .internal/
 
+# Recursos externos clonados
+LLMs-from-scratch/
+
+
