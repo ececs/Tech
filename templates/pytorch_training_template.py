@@ -7,6 +7,13 @@ Este script contiene una estructura estándar de producción para entrenar model
 4. Guardado de checkpoints y visualización de curvas de pérdida/precisión.
 """
 
+import os
+import sys
+
+# Workarounds de OpenMP para evitar segfaults en macOS con PyTorch/FAISS
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["OMP_NUM_THREADS"] = "1"
+
 import torch
 import torch.nn as nn
 import torch.optim as optim

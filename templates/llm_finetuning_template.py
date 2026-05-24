@@ -5,8 +5,15 @@ usando Parameter-Efficient Fine-Tuning (PEFT) con LoRA y SFTTrainer de TRL.
 """
 
 import os
+import sys
+
+# Workarounds de OpenMP para evitar segfaults en macOS con PyTorch/FAISS
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["OMP_NUM_THREADS"] = "1"
+
 import torch
 from typing import Dict, Any
+
 
 # ==========================================
 # REQUISITOS DE LIBRERÍAS (pip install):

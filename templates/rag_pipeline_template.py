@@ -6,8 +6,15 @@ Este script contiene dos enfoques para resolver un problema RAG:
 """
 
 import os
+import sys
+
+# Workarounds de OpenMP para evitar segfaults en macOS con PyTorch/FAISS
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["OMP_NUM_THREADS"] = "1"
+
 from typing import List, Dict, Any
 import numpy as np
+
 
 # ==========================================
 # ENFOQUE 1: LANGCHAIN + FAISS
