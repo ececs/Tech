@@ -11,22 +11,23 @@ El tiempo se divide en fases consecutivas, asegurando tener un producto funciona
 ```mermaid
 gantt
     title Cronograma de Trabajo (24 Horas)
-    dateFormat YYYY-MM-DD HH:mm
-    axisFormat %H:00
+    dateFormat  HH:mm
+    axisFormat  %H:%M
+    
     section Ingesta
-    Requisitos e Inicialización : active, 2026-05-24 00:00, 1h
+    Requisitos e Inicialización : active, t1, 00:00, 1h
     section Diseño
-    Estudio y Comparación de Enfoques : 2026-05-24 01:00, 2h
+    Estudio y Comparación de Enfoques : t2, after t1, 2h
     section MVP
-    Construcción del Pipeline e IA : 2026-05-24 03:00, 5h
+    Construcción del Pipeline e IA : t3, after t2, 5h
     section Tests
-    Pruebas Unitarias y Casos Límite : 2026-05-24 08:00, 4h
+    Pruebas Unitarias y Casos Límite : t4, after t3, 4h
     section Métricas
-    Observabilidad y Evaluación : 2026-05-24 12:00, 4h
+    Observabilidad y Evaluación : t5, after t4, 4h
     section Docs
-    README.md y Documentación Final : 2026-05-24 16:00, 4h
+    README.md y Documentación Final : t6, after t5, 4h
     section Cierre
-    Revisión de Código y Entrega : 2026-05-24 20:00, 4h
+    Revisión de Código y Entrega : t7, after t6, 4h
 ```
 
 ---
