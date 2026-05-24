@@ -30,3 +30,7 @@ results/
 
 # Carpetas de datos locales
 data/
+
+# Datos privados de agentes
+.internal/
+
