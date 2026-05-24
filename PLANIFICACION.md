@@ -90,3 +90,37 @@ gantt
   * Ejecutar formateadores y linters (`black`, `flake8`, `mypy`).
   * Hacer git status y verificar que no se suban archivos basura o pesados.
   * Realizar el push final a la rama principal de GitHub y comprobar que se visualice correctamente en la plataforma.
+
+---
+
+## 🧠 Estrategia de Orquestación de Herramientas de IA
+
+Para maximizar el tiempo y aprovechar las fortalezas de cada modelo disponible, se recomienda dividir las tareas del reto técnico de la siguiente manera:
+
+### 1. Google Antigravity (Gemini 3.5 - Este Entorno)
+* **Fortaleza**: Ventana de contexto masiva (hasta 2M tokens), razonamiento global del proyecto y lectura fluida de datos de prueba grandes o documentación extensa.
+* **Uso recomendado**:
+  * **Análisis de Enunciado**: Pásale el PDF o texto completo del reto sin recortar para extraer los requisitos y definir las fases iniciales.
+  * **Estructura Global**: Diseñar el flujo de trabajo (`task.md`) y supervisar que se cumplan las reglas del puesto y las decisiones de diseño.
+  * **Integración del Pipeline**: Conectar módulos de punta a punta y supervisar las pruebas de integración.
+
+### 2. Claude Code / Claude Pro (Claude 3.5 Sonnet / 4.7 Opus)
+* **Fortaleza**: Precisión técnica milimétrica, lógica algorítmica compleja, estructuración de código modular y apego estricto a las directrices de estilo (PEP 8, type hints).
+* **Uso recomendado**:
+  * **Escritura de Módulos Core**: Implementar la lógica del pipeline de datos (`src/data_pipeline.py`) y modelos en PyTorch (`src/model.py`).
+  * **Generación de Tests Unitarios**: Escribir la suite de pruebas con `pytest` en la carpeta `tests/`. Claude es excelente identificando casos límite y validando tipos de datos.
+  * **Refactorización**: Revisión de código en la fase final para simplificar funciones y limpiar redundancias.
+
+### 3. GPT Plus (GPT-5.5 / GPT-4o)
+* **Fortaleza**: Generación rápida de código repetitivo (*boilerplate*), APIs estructuradas (FastAPI/Express) y resolución rápida de errores comunes de librerías.
+* **Uso recomendado**:
+  * **Código de Configuración**: Crear archivos como `setup.py`, configuraciones de linters, o routers de FastAPI básicos.
+  * **Generación de Documentación**: Ayudarte a redactar secciones del `README.md` (como guías de instalación o tablas de parámetros).
+  * **Resolución rápida de Bugs**: Depurar excepciones comunes en consola (como problemas al conectar bases vectoriales o errores de tipos en Pandas).
+
+### 4. OpenCode con Zen
+* **Fortaleza**: Autocompletado contextual rápido e inteligente directamente en el editor (Cursor/Zen).
+* **Uso recomendado**:
+  * **Escritura manual asistida**: Usar el autocompletado en tiempo real mientras implementas funciones rápidas en el editor.
+  * **Inline Refactoring**: Seleccionar un fragmento de código pequeño y pedirle modificaciones locales (como añadir control de excepciones o cambiar nombres de variables).
+
