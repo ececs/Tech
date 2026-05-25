@@ -24,7 +24,7 @@ DEFAULT_DOC_PATHS: tuple[Path, ...] = (
 )
 DEFAULT_INDEX_DIR: Path = PROJECT_ROOT / "artifacts" / "rag_index"
 DEFAULT_OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://192.168.31.181:11434")
-DEFAULT_OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.2")
+DEFAULT_OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.1")
 DEFAULT_LOCAL_OLLAMA_URL: str = os.getenv("OLLAMA_LOCAL_URL", "http://127.0.0.1:11434")
 DEFAULT_FALLBACK_MODEL: str = os.getenv("OLLAMA_FALLBACK_MODEL", "tinyllama")
 # Multilingual embedding model: the project corpus mixes Spanish (DIARIO,

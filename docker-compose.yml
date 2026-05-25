@@ -7,5 +7,5 @@ services:
       - "8000:8000"
     environment:
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
       OLLAMA_FALLBACK_MODEL: ${OLLAMA_FALLBACK_MODEL:-tinyllama}
