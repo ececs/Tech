@@ -497,10 +497,17 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        max-width: 850px;
         width: 100%;
         margin: 20px auto;
         box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .report-image-container.wide {
+        max-width: 950px;
+      }
+
+      .report-image-container.square {
+        max-width: 500px;
       }
 
       .report-image-container img {
@@ -848,7 +855,7 @@
                 <li><strong>Desbalance de Clases:</strong> Exactamente <strong>508 anomalías (5.08%)</strong> de un total de 10,000 registros, reflejando la rareza de los fallos de hardware en producción.</li>
               </ul>
 
-              <div class="report-image-container">
+              <div class="report-image-container square">
                 <img src="/images/matriz_correlacion.png" alt="Matriz de Correlación" />
                 <span class="report-image-title">Figura 1.1: Correlación lineal de sensores (matriz de correlación)</span>
               </div>
@@ -857,7 +864,7 @@
                 La matriz de correlación anterior muestra la alta correlación lineal inducida entre la CPU y el tráfico de red, así como la fuerte dependencia de la temperatura con la carga de la CPU, simulando el acoplamiento físico real de los componentes térmicos de un servidor.
               </p>
 
-              <div class="report-image-container">
+              <div class="report-image-container square">
                 <img src="/images/distribution_clases.png" alt="Distribución de Clases" />
                 <span class="report-image-title">Figura 1.2: Frecuencia de clases estables vs anomalías (desbalanceo de 5.08%)</span>
               </div>
@@ -866,7 +873,7 @@
                 Adicionalmente, se analiza la distribución de las variables bajo condiciones estables y de fallo. Como las anomalías son causadas por una combinación acumulativa de temperatura y memoria, las curvas normales y anómalas muestran un solapamiento en sus rangos de operación normales, requiriendo que la red neuronal aprenda las sutilezas de la dinámica temporal para no generar falsas alarmas.
               </p>
 
-              <div class="report-image-container">
+              <div class="report-image-container wide">
                 <img src="/images/distribucion_variables_fallo.png" alt="Distribución de variables bajo fallo" />
                 <span class="report-image-title">Figura 1.3: Distribución de densidad de sensores en estados normales y de fallo (todo el ancho)</span>
               </div>
@@ -894,7 +901,7 @@
                 </li>
               </ul>
 
-              <div class="report-image-container">
+              <div class="report-image-container wide">
                 <img src="/images/training_curves.png" alt="Curvas de Entrenamiento MLP" />
                 <span class="report-image-title">Figura 2.1: Curvas de pérdida y validación del modelo base MLP (todo el ancho)</span>
               </div>
@@ -903,7 +910,7 @@
                 Las curvas de entrenamiento del MLP revelan la convergencia del modelo, mostrando cómo la pérdida se reduce progresivamente y el F1-score de validación se estabiliza con un comportamiento suave debido al Dropout (0.2) y Early Stopping. A continuación, comparamos estas curvas con las de la variante GRU.
               </p>
 
-              <div class="report-image-container">
+              <div class="report-image-container wide">
                 <img src="/images/training_curves_gru.png" alt="Curvas de Entrenamiento GRU" />
                 <span class="report-image-title">Figura 2.2: Curvas de pérdida y validación del modelo variante GRU (todo el ancho)</span>
               </div>
@@ -967,14 +974,14 @@
                 Por lo tanto, el modelo **MLP con ventana deslizante** y umbral calibrado de **0.71** es el más robusto, generalizando con éxito en el conjunto de prueba (F1 de test = 0.8384).
               </p>
 
-              <div class="report-image-container">
+              <div class="report-image-container square">
                 <img src="/images/test_confusion_matrix.png" alt="Matriz de Confusión MLP" />
-                <span class="report-image-title">Figura 3.1: Matriz de confusión del modelo base MLP en el test split (todo el ancho)</span>
+                <span class="report-image-title">Figura 3.1: Matriz de confusión del modelo base MLP en el test split</span>
               </div>
 
-              <div class="report-image-container">
+              <div class="report-image-container square">
                 <img src="/images/test_confusion_matrix_gru.png" alt="Matriz de Confusión GRU" />
-                <span class="report-image-title">Figura 3.2: Matriz de confusión del modelo variante GRU en el test split (todo el ancho)</span>
+                <span class="report-image-title">Figura 3.2: Matriz de confusión del modelo variante GRU en el test split</span>
               </div>
             </div>
           </div>
