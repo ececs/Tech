@@ -8,13 +8,6 @@ __pycache__
 .DS_Store
 tests/
 eda_telemetria.ipynb
-distribution_clases.png
-distribucion_variables_fallo.png
-matriz_correlacion.png
-test_confusion_matrix.png
-test_confusion_matrix_gru.png
-training_curves.png
-training_curves_gru.png
 sweep_results.jsonl
 sweep_results_cuda.jsonl
 sweep_log.txt

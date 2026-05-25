@@ -794,6 +794,25 @@
         </div>
       </section>
 
+      <section class="panel chat-shell">
+        <h2>Documentation Chat</h2>
+        <p class="muted">
+          Consulta el RAG local sobre README, diario de proyecto y guion. Las respuestas incluyen citas recuperadas.
+        </p>
+        {% if not rag_ready %}
+        <p class="warning">El chat RAG arrancó en modo degradado: {{ rag_error }}</p>
+        {% endif %}
+        <div id="chat-log" class="chat-log">
+          <div class="bubble assistant">
+            Puedo responder preguntas sobre el proyecto, por ejemplo: "¿Por qué el GRU pierde frente al MLP?" o "¿Qué threshold final se usa?".
+          </div>
+        </div>
+        <form id="chat-form" class="chat-form">
+          <textarea id="chat-input" placeholder="Escribe una pregunta sobre la documentación del proyecto..."></textarea>
+          <button id="chat-send" type="submit">Ask</button>
+        </form>
+      </section>
+
       <section class="panel">
         <h2>Reporte de Experimentos y Métricas</h2>
         <p class="muted">
@@ -944,25 +963,6 @@
             </div>
           </div>
         </div>
-      </section>
-
-      <section class="panel chat-shell">
-        <h2>Documentation Chat</h2>
-        <p class="muted">
-          Consulta el RAG local sobre README, diario de proyecto y guion. Las respuestas incluyen citas recuperadas.
-        </p>
-        {% if not rag_ready %}
-        <p class="warning">El chat RAG arrancó en modo degradado: {{ rag_error }}</p>
-        {% endif %}
-        <div id="chat-log" class="chat-log">
-          <div class="bubble assistant">
-            Puedo responder preguntas sobre el proyecto, por ejemplo: "¿Por qué el GRU pierde frente al MLP?" o "¿Qué threshold final se usa?".
-          </div>
-        </div>
-        <form id="chat-form" class="chat-form">
-          <textarea id="chat-input" placeholder="Escribe una pregunta sobre la documentación del proyecto..."></textarea>
-          <button id="chat-send" type="submit">Ask</button>
-        </form>
       </section>
     </main>
 
