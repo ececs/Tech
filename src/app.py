@@ -20,7 +20,9 @@ from src.inference_service import (
     RuntimeResources,
     compute_session_id,
     infer_uploaded_dataframe,
+    list_simulation_scenarios,
     load_runtime_resources,
+    load_simulation_window,
     predict_snapshot,
     predict_trend,
 )
@@ -114,6 +116,29 @@ class UploadResponse(BaseModel):
 
 class DownloadRequest(BaseModel):
     session_id: str = Field(..., min_length=6, max_length=64)
+
+
+class SimulationScenario(BaseModel):
+    id: str
+    label: str
+    description: str
+    start: int
+    length: int
+
+
+class SimulationRow(BaseModel):
+    timestamp: str
+    cpu_usage: float
+    mem_usage: float
+    network_traffic: float
+    cpu_temp: float
+    failure_actual: int
+
+
+class SimulationStreamResponse(BaseModel):
+    start: int
+    length: int
+    rows: list[SimulationRow]
 
 
 class AskRequest(BaseModel):
@@ -352,6 +377,24 @@ def create_app(
             summary=UploadSummary(**batch_result.summary),
             records=[UploadRecord(**record) for record in batch_result.records],
             warnings=batch_result.warnings,
+        )
+
+    @app.get("/simulation/scenarios", response_model=list[SimulationScenario])
+    def simulation_scenarios() -> list[SimulationScenario]:
+        return [SimulationScenario(**scenario) for scenario in list_simulation_scenarios()]
+
+    @app.get("/simulation/stream", response_model=SimulationStreamResponse)
+    def simulation_stream(start: int = 8600, length: int = 150) -> SimulationStreamResponse:
+        try:
+            rows = load_simulation_window(start=start, length=length)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return SimulationStreamResponse(
+            start=start,
+            length=len(rows),
+            rows=[SimulationRow(**row) for row in rows],
         )
 
     @app.post("/download_results")

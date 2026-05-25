@@ -237,6 +237,68 @@
         flex-wrap: wrap;
       }
 
+      .sim-controls {
+        display: flex;
+        gap: 14px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+
+      .sim-controls label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.85rem;
+      }
+
+      .sim-controls select {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 0.95rem;
+        min-width: 220px;
+      }
+
+      .sim-controls button {
+        padding: 10px 16px;
+      }
+
+      .sim-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+        margin: 12px 0;
+      }
+
+      .sim-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .sim-card.metric-card strong {
+        font-size: 1.05rem;
+      }
+
+      .sim-card.alert-pred,
+      .sim-card.alert-actual {
+        background: rgba(255, 99, 132, 0.18);
+        border-color: rgba(255, 99, 132, 0.6);
+      }
+
+      .sim-card.safe-pred,
+      .sim-card.safe-actual {
+        background: rgba(74, 222, 174, 0.12);
+        border-color: rgba(74, 222, 174, 0.4);
+      }
+
       .hidden {
         display: none !important;
       }
@@ -464,6 +526,90 @@
         </p>
         <div class="chart-wrap">
           <canvas id="timeline-chart"></canvas>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Live Simulation</h2>
+        <p class="muted">
+          Replays a slice of the test split tick by tick, calling the trained
+          model on a real 5-step window each second. Shows predicted vs actual
+          and a confusion matrix that updates live.
+        </p>
+
+        <div class="sim-controls">
+          <label>
+            <span class="muted">Scenario</span>
+            <select id="sim-scenario"></select>
+          </label>
+          <label>
+            <span class="muted">Speed</span>
+            <select id="sim-speed">
+              <option value="1000">1× (1 s/tick)</option>
+              <option value="500">2×</option>
+              <option value="200" selected>5×</option>
+              <option value="100">10×</option>
+              <option value="50">20×</option>
+            </select>
+          </label>
+          <button id="sim-play" type="button">▶ Play</button>
+          <button id="sim-pause" type="button" class="secondary" disabled>Pause</button>
+          <button id="sim-reset" type="button" class="secondary" disabled>Reset</button>
+        </div>
+        <p class="meta" id="sim-status">Pick a scenario and press Play to start.</p>
+
+        <div class="sim-grid">
+          <div class="sim-card">
+            <span class="muted">Tick</span>
+            <strong id="sim-tick">0 / 0</strong>
+          </div>
+          <div class="sim-card">
+            <span class="muted">Last reading</span>
+            <strong id="sim-current">--</strong>
+          </div>
+          <div class="sim-card">
+            <span class="muted">Predicted</span>
+            <strong id="sim-pred">--</strong>
+          </div>
+          <div class="sim-card">
+            <span class="muted">Actual</span>
+            <strong id="sim-actual">--</strong>
+          </div>
+        </div>
+
+        <div class="sim-grid">
+          <div class="sim-card metric-card">
+            <span class="muted">TP</span>
+            <strong id="sim-tp">0</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">FP</span>
+            <strong id="sim-fp">0</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">FN</span>
+            <strong id="sim-fn">0</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">TN</span>
+            <strong id="sim-tn">0</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">F1</span>
+            <strong id="sim-f1">--</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">Precision</span>
+            <strong id="sim-prec">--</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">Recall</span>
+            <strong id="sim-rec">--</strong>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="sim-chart"></canvas>
         </div>
       </section>
 
@@ -878,6 +1024,398 @@
           setFile(file);
         }
       });
+
+      // ---------------------------------------------------------------------
+      // Live Simulation Player
+      // Reads a curated slice from /simulation/stream, advances one row per
+      // tick, feeds the last 5 rows into /predict_window and renders a live
+      // chart + confusion matrix. The clock lives entirely on the client.
+      // ---------------------------------------------------------------------
+
+      const simScenarioSelect = document.getElementById("sim-scenario");
+      const simSpeedSelect = document.getElementById("sim-speed");
+      const simPlayBtn = document.getElementById("sim-play");
+      const simPauseBtn = document.getElementById("sim-pause");
+      const simResetBtn = document.getElementById("sim-reset");
+      const simStatus = document.getElementById("sim-status");
+      const simTick = document.getElementById("sim-tick");
+      const simCurrent = document.getElementById("sim-current");
+      const simPred = document.getElementById("sim-pred");
+      const simActual = document.getElementById("sim-actual");
+      const simTp = document.getElementById("sim-tp");
+      const simFp = document.getElementById("sim-fp");
+      const simFn = document.getElementById("sim-fn");
+      const simTn = document.getElementById("sim-tn");
+      const simF1 = document.getElementById("sim-f1");
+      const simPrec = document.getElementById("sim-prec");
+      const simRec = document.getElementById("sim-rec");
+
+      const SIM_CHART_WINDOW = 60;
+      const SIM_TREND_WINDOW = 5;
+
+      const simState = {
+        scenarios: [],
+        scenarioRows: [],
+        idx: 0,
+        playing: false,
+        timer: null,
+        buffer: [],
+        confusion: { tp: 0, fp: 0, fn: 0, tn: 0 },
+      };
+
+      let simChart = null;
+
+      const loadSimulationScenarios = async () => {
+        try {
+          const response = await fetch("/simulation/scenarios");
+          if (!response.ok) {
+            throw new Error("Could not load scenarios");
+          }
+          const scenarios = await response.json();
+          simState.scenarios = scenarios;
+          simScenarioSelect.innerHTML = "";
+          scenarios.forEach((scenario) => {
+            const option = document.createElement("option");
+            option.value = scenario.id;
+            option.textContent = scenario.label;
+            option.title = scenario.description;
+            simScenarioSelect.appendChild(option);
+          });
+        } catch (error) {
+          simScenarioSelect.innerHTML =
+            '<option value="">Scenarios unavailable</option>';
+          simStatus.textContent = `Could not load scenarios: ${error.message}`;
+        }
+      };
+
+      const ensureSimChart = () => {
+        if (simChart) return;
+        simChart = new Chart(document.getElementById("sim-chart"), {
+          type: "line",
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: "cpu_temp",
+                data: [],
+                borderColor: "#f4a261",
+                backgroundColor: "rgba(244, 162, 97, 0.15)",
+                yAxisID: "y",
+                tension: 0.25,
+                pointRadius: 0,
+              },
+              {
+                label: "cpu_usage",
+                data: [],
+                borderColor: "#4a9efd",
+                backgroundColor: "rgba(74, 158, 253, 0.12)",
+                yAxisID: "y",
+                tension: 0.25,
+                pointRadius: 0,
+              },
+              {
+                label: "probability",
+                data: [],
+                borderColor: "#9d4edd",
+                backgroundColor: "rgba(157, 78, 221, 0.18)",
+                yAxisID: "y1",
+                tension: 0.2,
+                pointRadius: 0,
+              },
+              {
+                label: "predicted anomaly",
+                data: [],
+                type: "scatter",
+                showLine: false,
+                pointBackgroundColor: "#ff5470",
+                pointBorderColor: "#ff5470",
+                pointRadius: 5,
+                yAxisID: "y",
+              },
+            ],
+          },
+          options: {
+            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                type: "linear",
+                position: "left",
+                ticks: { color: "#cfd6e4" },
+                grid: { color: "rgba(255,255,255,0.05)" },
+              },
+              y1: {
+                type: "linear",
+                position: "right",
+                min: 0,
+                max: 1,
+                ticks: { color: "#cfd6e4" },
+                grid: { drawOnChartArea: false },
+              },
+              x: {
+                ticks: { color: "#cfd6e4", maxTicksLimit: 8 },
+                grid: { color: "rgba(255,255,255,0.04)" },
+              },
+            },
+            plugins: {
+              legend: { labels: { color: "#cfd6e4" } },
+            },
+          },
+        });
+      };
+
+      const resetSimChart = () => {
+        ensureSimChart();
+        simChart.data.labels = [];
+        simChart.data.datasets.forEach((ds) => (ds.data = []));
+        simChart.update("none");
+      };
+
+      const trimSeries = () => {
+        const labels = simChart.data.labels;
+        if (labels.length <= SIM_CHART_WINDOW) return;
+        const excess = labels.length - SIM_CHART_WINDOW;
+        labels.splice(0, excess);
+        simChart.data.datasets.forEach((ds, index) => {
+          if (index === 3) {
+            // scatter points use {x, y}; drop those whose x is past the window
+            ds.data = ds.data.filter((point) =>
+              labels.includes(point.x),
+            );
+          } else {
+            ds.data.splice(0, excess);
+          }
+        });
+      };
+
+      const pushSimPoint = (row, probability, predicted) => {
+        ensureSimChart();
+        const label = row.timestamp.slice(11); // HH:MM:SS only
+        simChart.data.labels.push(label);
+        simChart.data.datasets[0].data.push(row.cpu_temp);
+        simChart.data.datasets[1].data.push(row.cpu_usage);
+        simChart.data.datasets[2].data.push(probability);
+        if (predicted === 1) {
+          simChart.data.datasets[3].data.push({ x: label, y: row.cpu_temp });
+        }
+        trimSeries();
+        simChart.update("none");
+      };
+
+      const updateConfusionUi = () => {
+        const { tp, fp, fn, tn } = simState.confusion;
+        simTp.textContent = tp;
+        simFp.textContent = fp;
+        simFn.textContent = fn;
+        simTn.textContent = tn;
+        const precision = tp + fp > 0 ? tp / (tp + fp) : null;
+        const recall = tp + fn > 0 ? tp / (tp + fn) : null;
+        const f1 =
+          precision !== null && recall !== null && precision + recall > 0
+            ? (2 * precision * recall) / (precision + recall)
+            : null;
+        simPrec.textContent = precision === null ? "--" : precision.toFixed(3);
+        simRec.textContent = recall === null ? "--" : recall.toFixed(3);
+        simF1.textContent = f1 === null ? "--" : f1.toFixed(3);
+      };
+
+      const setBadge = (element, predicted, baseClass) => {
+        element.classList.remove("alert-pred", "alert-actual", "safe-pred", "safe-actual");
+        if (predicted === 1) {
+          element.classList.add(baseClass === "pred" ? "alert-pred" : "alert-actual");
+        } else if (predicted === 0) {
+          element.classList.add(baseClass === "pred" ? "safe-pred" : "safe-actual");
+        }
+      };
+
+      const setControlsRunning = (running, hasData) => {
+        simPlayBtn.disabled = running;
+        simPauseBtn.disabled = !running;
+        simResetBtn.disabled = !hasData && !running;
+        simScenarioSelect.disabled = running;
+      };
+
+      const stopSimTimer = () => {
+        if (simState.timer !== null) {
+          clearInterval(simState.timer);
+          simState.timer = null;
+        }
+        simState.playing = false;
+      };
+
+      const resetSimulation = () => {
+        stopSimTimer();
+        simState.scenarioRows = [];
+        simState.idx = 0;
+        simState.buffer = [];
+        simState.confusion = { tp: 0, fp: 0, fn: 0, tn: 0 };
+        updateConfusionUi();
+        simTick.textContent = "0 / 0";
+        simCurrent.textContent = "--";
+        simPred.textContent = "--";
+        simActual.textContent = "--";
+        simPred.parentElement.classList.remove(
+          "alert-pred",
+          "safe-pred",
+        );
+        simActual.parentElement.classList.remove(
+          "alert-actual",
+          "safe-actual",
+        );
+        resetSimChart();
+        setControlsRunning(false, false);
+        simStatus.textContent = "Pick a scenario and press Play to start.";
+      };
+
+      const fetchScenarioRows = async (scenarioId) => {
+        const scenario = simState.scenarios.find((s) => s.id === scenarioId);
+        if (!scenario) {
+          throw new Error("Unknown scenario");
+        }
+        const url = `/simulation/stream?start=${scenario.start}&length=${scenario.length}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+          const detail = await response.json();
+          throw new Error(detail.detail || "Could not fetch simulation rows");
+        }
+        return await response.json();
+      };
+
+      const advanceTick = async () => {
+        if (simState.idx >= simState.scenarioRows.length) {
+          stopSimTimer();
+          setControlsRunning(false, true);
+          simStatus.textContent = "Simulation finished. Press Reset to clear.";
+          return;
+        }
+        const row = simState.scenarioRows[simState.idx];
+        simState.idx += 1;
+
+        // Maintain the trend ring buffer with real chronological readings.
+        simState.buffer.push({
+          cpu_usage: row.cpu_usage,
+          mem_usage: row.mem_usage,
+          network_traffic: row.network_traffic,
+          cpu_temp: row.cpu_temp,
+        });
+        if (simState.buffer.length > SIM_TREND_WINDOW) {
+          simState.buffer.shift();
+        }
+
+        // Sync sliders so the demo feels coherent across panels.
+        document.getElementById("cpu_usage").value = Math.round(row.cpu_usage);
+        document.getElementById("mem_usage").value = Math.round(row.mem_usage);
+        document.getElementById("network_traffic").value = Math.round(row.network_traffic);
+        document.getElementById("cpu_temp").value = Math.round(row.cpu_temp);
+        updateLabels();
+
+        let probability = 0;
+        let predicted = 0;
+        let threshold = 0.71;
+        try {
+          const response = await fetch("/predict_window", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ readings: simState.buffer }),
+          });
+          if (!response.ok) {
+            const detail = await response.json();
+            throw new Error(detail.detail || "Prediction failed");
+          }
+          const data = await response.json();
+          probability = data.probability;
+          predicted = data.prediction;
+          threshold = data.threshold;
+        } catch (error) {
+          simStatus.textContent = `Tick ${simState.idx}: ${error.message}`;
+          stopSimTimer();
+          setControlsRunning(false, true);
+          return;
+        }
+
+        const actual = row.failure_actual;
+        if (predicted === 1 && actual === 1) simState.confusion.tp += 1;
+        else if (predicted === 1 && actual === 0) simState.confusion.fp += 1;
+        else if (predicted === 0 && actual === 1) simState.confusion.fn += 1;
+        else simState.confusion.tn += 1;
+
+        simTick.textContent = `${simState.idx} / ${simState.scenarioRows.length}`;
+        simCurrent.textContent = `CPU ${row.cpu_usage.toFixed(1)}% · Mem ${row.mem_usage.toFixed(
+          1,
+        )}% · Temp ${row.cpu_temp.toFixed(1)}°C`;
+        simPred.textContent = `${predicted === 1 ? "ANOMALY" : "stable"} (${(probability * 100).toFixed(1)}%)`;
+        simActual.textContent = actual === 1 ? "ANOMALY" : "stable";
+        setBadge(simPred.parentElement, predicted, "pred");
+        setBadge(simActual.parentElement, actual, "actual");
+
+        // Mirror the live prediction in the snapshot summary card.
+        renderPrediction({
+          probability,
+          prediction: predicted,
+          threshold,
+          decision:
+            predicted === 1 ? "Anomaly risk detected" : "System appears stable",
+        });
+        statusMeta.textContent = `Live simulation · tick ${simState.idx} · threshold ${threshold.toFixed(2)}`;
+
+        pushSimPoint(row, probability, predicted);
+        updateConfusionUi();
+      };
+
+      const startSimulation = async () => {
+        if (simState.playing) return;
+        const scenarioId = simScenarioSelect.value;
+        if (!scenarioId) {
+          simStatus.textContent = "No scenario available.";
+          return;
+        }
+        // Fresh start only when there are no rows queued yet; otherwise resume.
+        if (simState.scenarioRows.length === 0) {
+          simStatus.textContent = "Loading scenario…";
+          try {
+            const data = await fetchScenarioRows(scenarioId);
+            simState.scenarioRows = data.rows;
+            simState.idx = 0;
+            simState.buffer = [];
+            simState.confusion = { tp: 0, fp: 0, fn: 0, tn: 0 };
+            updateConfusionUi();
+            resetSimChart();
+          } catch (error) {
+            simStatus.textContent = `Could not start: ${error.message}`;
+            return;
+          }
+        }
+        simState.playing = true;
+        setControlsRunning(true, true);
+        const interval = Number(simSpeedSelect.value) || 1000;
+        simStatus.textContent = `Playing scenario "${
+          simState.scenarios.find((s) => s.id === scenarioId)?.label || scenarioId
+        }" · ${simState.scenarioRows.length} ticks · ${interval} ms/tick`;
+        simState.timer = setInterval(advanceTick, interval);
+      };
+
+      const pauseSimulation = () => {
+        if (!simState.playing) return;
+        stopSimTimer();
+        setControlsRunning(false, true);
+        simStatus.textContent = `Paused at tick ${simState.idx}/${simState.scenarioRows.length}.`;
+      };
+
+      simPlayBtn.addEventListener("click", startSimulation);
+      simPauseBtn.addEventListener("click", pauseSimulation);
+      simResetBtn.addEventListener("click", resetSimulation);
+      simSpeedSelect.addEventListener("change", () => {
+        if (simState.playing) {
+          stopSimTimer();
+          simState.playing = false;
+          startSimulation();
+        }
+      });
+      simScenarioSelect.addEventListener("change", resetSimulation);
+
+      loadSimulationScenarios();
+      // ---------------------------------------------------------------------
 
       analyzeBtn.addEventListener("click", analyzeCsv);
       downloadBtn.addEventListener("click", downloadResults);

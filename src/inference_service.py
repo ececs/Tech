@@ -21,6 +21,125 @@ logger = logging.getLogger(__name__)
 
 REQUIRED_UPLOAD_COLUMNS = ["timestamp", *FEATURE_COLS]
 
+# Pre-curated simulation scenarios, hand-picked from the test split
+# (rows 8500–9999) by inspecting failure density and ramp-up dynamics.
+# Each scenario is identified by a stable id so the frontend can keep a
+# dropdown without depending on absolute offsets.
+SIMULATION_SCENARIOS: list[dict[str, object]] = [
+    {
+        "id": "ramp_up",
+        "label": "Ramp-up to crisis (recommended)",
+        "description": (
+            "Starts calm (~79 °C, zero failures) and escalates over ~45 "
+            "ticks into a sustained thermal crisis with 9+ failures. Best "
+            "scenario to showcase the sliding window detecting the trend."
+        ),
+        "start": 8600,
+        "length": 150,
+    },
+    {
+        "id": "hot_cluster",
+        "label": "Hot cluster (peak intensity)",
+        "description": (
+            "Dense thermal failure cluster (38 anomalies over 200 rows, "
+            "temp up to 105 °C). Useful to watch the confusion matrix "
+            "accumulate true positives quickly."
+        ),
+        "start": 8750,
+        "length": 200,
+    },
+    {
+        "id": "false_alarm_risk",
+        "label": "Warm but stable (no failures)",
+        "description": (
+            "200 rows where temperature averages 82 °C without producing "
+            "any actual failure. Stress-tests the model's precision and "
+            "false-positive rate."
+        ),
+        "start": 9050,
+        "length": 200,
+    },
+    {
+        "id": "calm_baseline",
+        "label": "Calm baseline",
+        "description": (
+            "150 quiet rows from early test split with mostly nominal "
+            "behaviour. Verifies the model stays silent when nothing is "
+            "happening."
+        ),
+        "start": 8500,
+        "length": 150,
+    },
+]
+
+
+def list_simulation_scenarios() -> list[dict[str, object]]:
+    """Return the pre-curated scenarios available to the frontend player."""
+    return [dict(scenario) for scenario in SIMULATION_SCENARIOS]
+
+
+def load_simulation_window(
+    start: int,
+    length: int,
+    csv_path: Path = Path(__file__).resolve().parents[1] / "dataset_servidores.csv",
+) -> list[dict[str, object]]:
+    """Read a contiguous slice of the telemetry CSV including the ground-truth label.
+
+    Args:
+        start: 0-indexed row offset into the chronologically-sorted CSV.
+        length: Number of consecutive rows to return.
+        csv_path: Source CSV path (defaults to ``dataset_servidores.csv``).
+
+    Returns:
+        List of dicts with timestamp (ISO string), the 4 feature values
+        and the integer ground-truth ``failure_actual`` label.
+
+    Raises:
+        FileNotFoundError: If the CSV is missing.
+        ValueError: If ``start`` or ``length`` are out of bounds.
+    """
+    if start < 0:
+        raise ValueError(f"start must be >= 0, got {start}")
+    if length <= 0:
+        raise ValueError(f"length must be > 0, got {length}")
+    if length > 2000:
+        raise ValueError(
+            f"length must be <= 2000 to keep payloads small, got {length}"
+        )
+
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Dataset not found: {csv_path}")
+
+    df = pd.read_csv(csv_path, parse_dates=["timestamp"])
+    df = df.sort_values("timestamp").reset_index(drop=True)
+
+    if start >= len(df):
+        raise ValueError(
+            f"start={start} is past the end of the dataset ({len(df)} rows)"
+        )
+    end = min(start + length, len(df))
+    chunk = df.iloc[start:end]
+
+    return [
+        {
+            "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "cpu_usage": float(cpu),
+            "mem_usage": float(mem),
+            "network_traffic": float(net),
+            "cpu_temp": float(temp),
+            "failure_actual": int(failure),
+        }
+        for ts, cpu, mem, net, temp, failure in zip(
+            chunk["timestamp"],
+            chunk["cpu_usage"],
+            chunk["mem_usage"],
+            chunk["network_traffic"],
+            chunk["cpu_temp"],
+            chunk["failure"],
+            strict=True,
+        )
+    ]
+
 
 @dataclass(frozen=True)
 class RuntimeResources:

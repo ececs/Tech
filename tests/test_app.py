@@ -138,6 +138,60 @@ def test_predict_window_rejects_too_many_readings(
     assert response.status_code == 422  # pydantic max_length violation
 
 
+def test_simulation_scenarios_lists_curated_windows(
+    ready_runtime: RuntimeResources, ready_rag: RAGResources
+) -> None:
+    client = TestClient(create_app(runtime_override=ready_runtime, rag_override=ready_rag))
+    response = client.get("/simulation/scenarios")
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, list)
+    assert len(payload) >= 3
+    # The recommended ramp-up scenario must always be present.
+    ids = {scenario["id"] for scenario in payload}
+    assert "ramp_up" in ids
+    for scenario in payload:
+        assert {"id", "label", "description", "start", "length"} <= scenario.keys()
+        assert scenario["length"] > 0
+
+
+def test_simulation_stream_returns_rows_with_ground_truth(
+    ready_runtime: RuntimeResources, ready_rag: RAGResources
+) -> None:
+    client = TestClient(create_app(runtime_override=ready_runtime, rag_override=ready_rag))
+    response = client.get("/simulation/stream", params={"start": 8600, "length": 20})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["start"] == 8600
+    assert payload["length"] == 20
+    assert len(payload["rows"]) == 20
+    sample = payload["rows"][0]
+    assert {
+        "timestamp",
+        "cpu_usage",
+        "mem_usage",
+        "network_traffic",
+        "cpu_temp",
+        "failure_actual",
+    } <= sample.keys()
+    assert sample["failure_actual"] in {0, 1}
+
+
+def test_simulation_stream_rejects_invalid_bounds(
+    ready_runtime: RuntimeResources, ready_rag: RAGResources
+) -> None:
+    client = TestClient(create_app(runtime_override=ready_runtime, rag_override=ready_rag))
+
+    for params in [
+        {"start": -1, "length": 50},
+        {"start": 8600, "length": 0},
+        {"start": 8600, "length": 9000},  # > 2000 cap
+        {"start": 999_999, "length": 10},
+    ]:
+        response = client.get("/simulation/stream", params=params)
+        assert response.status_code == 400, params
+
+
 def test_predict_returns_503_when_runtime_not_ready(ready_rag: RAGResources) -> None:
     degraded_runtime = RuntimeResources(
         model=None,
