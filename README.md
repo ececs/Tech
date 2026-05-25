@@ -75,7 +75,7 @@ The sweep execution times were:
 * **Mac M4 (MPS):** **16.1 minutes**
 * **PC RTX 4070 Super (CUDA):** **17.8 minutes**
 
-*Analysis:* Since the MLP model is tiny (~3,000 parameters) and the dataset easily fits in memory, the compute requirements are negligible. The time is dominated by memory transfers between CPU and GPU (`to(device)`) and Python interpreter overhead. This shows that the training is **I/O-bound**, and parallel GPU computing does not speed it up compared to Apple's unified memory architecture.
+*Analysis:* Since the MLP model is tiny (3,649 parameters) and the dataset easily fits in memory, the compute requirements are negligible. The time is dominated by memory transfers between CPU and GPU (`to(device)`) and Python interpreter overhead. This shows that the training is **I/O-bound**, and parallel GPU computing does not speed it up compared to Apple's unified memory architecture.
 
 #### ⚠️ MPS Pitfall: `non_blocking=True` Corrupts Tensors
 While integrating PyTorch with Apple Silicon (`mps`), we observed that calling `.to(device, non_blocking=True)` inside the training loop produced corrupted loss values (`loss.item()` returned magnitudes of ~1e23). The optimization is a documented CUDA convention that **does not behave the same way on MPS**: with overlapped CPU→MPS transfers, the kernel reads partially-written buffers. The fix is to drop the flag — plain `tensor.to(device)` is correct and only marginally slower because of unified memory. This is recorded in [`DIARIO_PROYECTO.md`](DIARIO_PROYECTO.md) so future agents on the project avoid the same trap.

@@ -34,7 +34,7 @@ Resultado: el modelo recibe 20 variables por muestra (`5 pasos × 4 features`).
 
 El primer camino de entrega se cerró con un **MLP** porque era la opción más robusta y directa para cumplir el reto con garantías.
 
-Arquitectura:
+Arquitectura (3,649 parámetros):
 
 * entrada de 20 dimensiones,
 * capas ocultas 64 y 32,
@@ -57,7 +57,7 @@ Además:
 Hallazgos relevantes:
 
 * el problema está desbalanceado, por lo que la métrica prioritaria es F1, no accuracy;
-* el `pos_weight` bruto era demasiado agresivo y se suavizó durante el sweep;
+* el `pos_weight` crudo (o bruto) era de 18.82 y se suavizó durante el sweep a un pos_weight efectivo de 4.70 (escala 0.25);
 * el threshold óptimo no fue 0.5, sino aproximadamente 0.71;
 * para este modelo pequeño, la diferencia entre aceleradores vino más por coste de transferencia que por capacidad de cómputo.
 
@@ -65,7 +65,7 @@ Hallazgos relevantes:
 
 ## 5. Comparativa MLP vs GRU
 
-Tras cerrar la entrega con el MLP, se añadió una variante **GRU** como extensión.
+Tras cerrar la entrega con el MLP, se añadió una variante **GRU** (3,681 parámetros) como extensión.
 
 Conclusión principal:
 

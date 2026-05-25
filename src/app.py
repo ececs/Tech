@@ -239,7 +239,11 @@ def create_app(
             "rag_ready": request.app.state.rag.ready,
             "rag_error": request.app.state.rag.error,
         }
-        return templates.TemplateResponse("index.html", context)
+        return templates.TemplateResponse(
+            request=request,
+            name="index.html",
+            context=context,
+        )
 
     @app.get("/health", response_model=HealthResponse)
     def health(request: Request) -> HealthResponse:

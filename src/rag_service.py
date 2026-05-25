@@ -20,18 +20,17 @@ PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 DEFAULT_DOC_PATHS: tuple[Path, ...] = (
     PROJECT_ROOT / "README.md",
     PROJECT_ROOT / "DIARIO_PROYECTO.md",
-    PROJECT_ROOT / "GUION_VIDEO.md",
 )
 DEFAULT_INDEX_DIR: Path = PROJECT_ROOT / "artifacts" / "rag_index"
 DEFAULT_OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://192.168.31.181:11434")
-DEFAULT_OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.1")
+DEFAULT_OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
 DEFAULT_LOCAL_OLLAMA_URL: str = os.getenv("OLLAMA_LOCAL_URL", "http://127.0.0.1:11434")
 DEFAULT_FALLBACK_MODEL: str = os.getenv("OLLAMA_FALLBACK_MODEL", "tinyllama")
-# Multilingual embedding model: the project corpus mixes Spanish (DIARIO,
-# GUION_VIDEO) with English (README). The English-only all-MiniLM-L6-v2 was
-# tried first and FAILED to retrieve key bilingual passages — switching to
-# the multilingual paraphrase model fixed it. Keep it as the project-wide
-# default.
+# Multilingual embedding model: the project corpus mixes Spanish
+# (DIARIO_PROYECTO.md) with English (README.md). The English-only
+# all-MiniLM-L6-v2 was tried first and FAILED to retrieve key bilingual
+# passages — switching to the multilingual paraphrase model fixed it.
+# Keep it as the project-wide default.
 DEFAULT_EMBEDDING_MODEL: str = os.getenv(
     "EMBEDDING_MODEL",
     "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
