@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TechStream Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      :root {
+        --bg: #0a0a0a;
+        --panel: rgba(26, 26, 46, 0.72);
+        --panel-border: rgba(255, 255, 255, 0.1);
+        --text: #f7f8fb;
+        --muted: #9ba4c7;
+        --accent: #59c3c3;
+        --accent-strong: #f4a261;
+        --danger: #ff6b6b;
+        --success: #7bd389;
+        --warning: #ffd166;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(89, 195, 195, 0.18), transparent 32%),
+          radial-gradient(circle at top right, rgba(244, 162, 97, 0.15), transparent 28%),
+          linear-gradient(160deg, #050505 0%, #111321 54%, #0d101a 100%);
+        color: var(--text);
+        padding: 24px;
+      }
+
+      .shell {
+        width: min(1220px, 100%);
+        margin: 0 auto;
+        display: grid;
+        gap: 20px;
+      }
+
+      .hero,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 24px;
+        backdrop-filter: blur(14px);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.34);
+      }
+
+      .hero {
+        padding: 28px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        width: fit-content;
+        gap: 8px;
+        align-items: center;
+        border-radius: 999px;
+        padding: 8px 12px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 3vw, 3.2rem);
+        line-height: 1;
+      }
+
+      h2 {
+        font-size: 1.15rem;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      .meta,
+      .note,
+      .muted {
+        color: var(--muted);
+      }
+
+      .warning {
+        color: var(--warning);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 20px;
+      }
+
+      .panel {
+        padding: 24px;
+        display: grid;
+        gap: 18px;
+      }
+
+      .slider-row,
+      .summary-grid,
+      .actions {
+        display: grid;
+        gap: 14px;
+      }
+
+      .slider-row {
+        gap: 10px;
+      }
+
+      .slider-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .slider-value {
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--accent-strong);
+      }
+
+      .prob-track {
+        height: 18px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .prob-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+        transition: width 220ms ease;
+      }
+
+      .decision {
+        font-size: 1.1rem;
+        font-weight: 700;
+      }
+
+      .decision.safe {
+        color: var(--success);
+      }
+
+      .decision.risk {
+        color: var(--danger);
+      }
+
+      .dropzone {
+        border: 1px dashed rgba(255, 255, 255, 0.22);
+        border-radius: 18px;
+        padding: 28px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.03);
+        transition: border-color 180ms ease, transform 180ms ease;
+        cursor: pointer;
+      }
+
+      .dropzone.dragover {
+        border-color: var(--accent-strong);
+        transform: translateY(-2px);
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+
+      .summary-card {
+        border-radius: 18px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .summary-card strong {
+        display: block;
+        font-size: 1.4rem;
+        margin-top: 8px;
+      }
+
+      .actions {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
+
+      button {
+        border: none;
+        border-radius: 14px;
+        padding: 14px 18px;
+        background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+        color: #08131c;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .chart-wrap {
+        min-height: 280px;
+      }
+
+      .warning-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .warning-chip {
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255, 209, 102, 0.12);
+        color: var(--warning);
+      }
+
+      .chat-shell {
+        display: grid;
+        gap: 14px;
+      }
+
+      .chat-log {
+        display: grid;
+        gap: 12px;
+        max-height: 420px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .bubble {
+        border-radius: 18px;
+        padding: 14px 16px;
+        max-width: 85%;
+      }
+
+      .bubble.user {
+        justify-self: end;
+        background: rgba(89, 195, 195, 0.15);
+        border: 1px solid rgba(89, 195, 195, 0.22);
+      }
+
+      .bubble.assistant {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .citations {
+        margin-top: 12px;
+        display: grid;
+        gap: 8px;
+      }
+
+      details {
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.04);
+        padding: 10px 12px;
+      }
+
+      summary {
+        cursor: pointer;
+        color: var(--accent);
+      }
+
+      .chat-form {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 84px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text);
+        padding: 14px;
+        font: inherit;
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="eyebrow">
+          <span>FastAPI demo</span>
+          <span>device={{ device }}</span>
+          <span>model={{ model }}</span>
+          <span>threshold={{ "%.2f"|format(threshold) }}</span>
+        </div>
+        <h1>TechStream Monitor</h1>
+        <p>
+          Demo local del reto con dos modos: snapshot inference mediante sliders y
+          batch analysis sobre CSV temporal para explorar anomalías y picos térmicos.
+        </p>
+        <p class="note">
+          El modo snapshot repite la misma lectura 5 veces para llenar la ventana del modelo.
+          El modo CSV usa ventanas causales con padding al inicio para poder puntuar toda la serie.
+        </p>
+        {% if not ready %}
+        <p class="warning">El backend arrancó en modo degradado: {{ error }}</p>
+        {% endif %}
+      </section>
+
+      <section class="layout">
+        <article class="panel">
+          <h2>Live Snapshot</h2>
+          <p class="muted">
+            Ajusta los sliders para obtener una estimación rápida sobre el checkpoint entrenado.
+          </p>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <strong>CPU Usage</strong>
+              <span class="slider-value" data-value-for="cpu_usage">52%</span>
+            </div>
+            <input id="cpu_usage" type="range" min="0" max="100" step="1" value="52" />
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <strong>Memory Usage</strong>
+              <span class="slider-value" data-value-for="mem_usage">64%</span>
+            </div>
+            <input id="mem_usage" type="range" min="0" max="100" step="1" value="64" />
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <strong>Network Traffic</strong>
+              <span class="slider-value" data-value-for="network_traffic">95 MB/s</span>
+            </div>
+            <input id="network_traffic" type="range" min="0" max="250" step="1" value="95" />
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <strong>CPU Temp</strong>
+              <span class="slider-value" data-value-for="cpu_temp">73 °C</span>
+            </div>
+            <input id="cpu_temp" type="range" min="0" max="120" step="1" value="73" />
+          </div>
+
+          <div class="prob-track">
+            <div class="prob-fill" id="prob-fill"></div>
+          </div>
+          <strong id="prob-label">0.00%</strong>
+          <p id="decision" class="decision">Waiting for input…</p>
+          <p class="meta" id="prediction-meta">Prediction class: --</p>
+          <p class="meta" id="status-meta">
+            {% if ready %}Model ready for local inference{% else %}Model not ready{% endif %}
+          </p>
+        </article>
+
+        <article class="panel">
+          <h2>Batch CSV Analysis</h2>
+          <p class="muted">
+            Sube un CSV con `timestamp`, `cpu_usage`, `mem_usage`, `network_traffic` y `cpu_temp`.
+          </p>
+
+          <label class="dropzone" id="dropzone">
+            <input id="file-input" type="file" accept=".csv" class="hidden" />
+            <strong>Drop file here or click</strong>
+            <p class="muted">Procesa la serie, calcula probabilidades y prepara descarga.</p>
+          </label>
+
+          <div id="warning-list" class="warning-list hidden"></div>
+
+          <div id="summary-panel" class="summary-grid hidden">
+            <div class="summary-card">
+              <span class="muted">Rows</span>
+              <strong id="summary-rows">0</strong>
+            </div>
+            <div class="summary-card">
+              <span class="muted">Anomalies</span>
+              <strong id="summary-anomalies">0</strong>
+            </div>
+            <div class="summary-card">
+              <span class="muted">Anomaly Rate</span>
+              <strong id="summary-rate">0%</strong>
+            </div>
+            <div class="summary-card">
+              <span class="muted">Top Thermal Peak</span>
+              <strong id="summary-peak">--</strong>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="analyze-btn" type="button">Analyze CSV</button>
+            <button id="download-btn" class="secondary" type="button" disabled>
+              Download analyzed CSV
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>Temporal View</h2>
+        <p class="muted">
+          CPU temp in orange, CPU usage in blue, predicted anomalies as red scatter markers.
+        </p>
+        <div class="chart-wrap">
+          <canvas id="timeline-chart"></canvas>
+        </div>
+      </section>
+
+      <section class="panel chat-shell">
+        <h2>Documentation Chat</h2>
+        <p class="muted">
+          Consulta el RAG local sobre README, diario de proyecto y guion. Las respuestas incluyen citas recuperadas.
+        </p>
+        {% if not rag_ready %}
+        <p class="warning">El chat RAG arrancó en modo degradado: {{ rag_error }}</p>
+        {% endif %}
+        <div id="chat-log" class="chat-log">
+          <div class="bubble assistant">
+            Puedo responder preguntas sobre el proyecto, por ejemplo: "¿Por qué el GRU pierde frente al MLP?" o "¿Qué threshold final se usa?".
+          </div>
+        </div>
+        <form id="chat-form" class="chat-form">
+          <textarea id="chat-input" placeholder="Escribe una pregunta sobre la documentación del proyecto..."></textarea>
+          <button id="chat-send" type="submit">Ask</button>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      const sliderUnits = {
+        cpu_usage: "%",
+        mem_usage: "%",
+        network_traffic: " MB/s",
+        cpu_temp: " °C",
+      };
+
+      const sliders = Array.from(document.querySelectorAll('input[type="range"]'));
+      const probFill = document.getElementById("prob-fill");
+      const probLabel = document.getElementById("prob-label");
+      const decisionEl = document.getElementById("decision");
+      const predictionMeta = document.getElementById("prediction-meta");
+      const statusMeta = document.getElementById("status-meta");
+
+      const dropzone = document.getElementById("dropzone");
+      const fileInput = document.getElementById("file-input");
+      const analyzeBtn = document.getElementById("analyze-btn");
+      const downloadBtn = document.getElementById("download-btn");
+      const warningList = document.getElementById("warning-list");
+      const summaryPanel = document.getElementById("summary-panel");
+      const chatLog = document.getElementById("chat-log");
+      const chatForm = document.getElementById("chat-form");
+      const chatInput = document.getElementById("chat-input");
+      const chatSend = document.getElementById("chat-send");
+
+      let selectedFile = null;
+      let latestSessionId = null;
+      let chart = null;
+
+      const updateLabels = () => {
+        sliders.forEach((slider) => {
+          const label = document.querySelector(`[data-value-for="${slider.id}"]`);
+          label.textContent = `${slider.value}${sliderUnits[slider.id]}`;
+        });
+      };
+
+      const snapshotPayload = () => ({
+        cpu_usage: Number(document.getElementById("cpu_usage").value),
+        mem_usage: Number(document.getElementById("mem_usage").value),
+        network_traffic: Number(document.getElementById("network_traffic").value),
+        cpu_temp: Number(document.getElementById("cpu_temp").value),
+      });
+
+      const renderPrediction = (data) => {
+        const percent = data.probability * 100;
+        probFill.style.width = `${percent.toFixed(2)}%`;
+        probLabel.textContent = `${percent.toFixed(2)}%`;
+        decisionEl.textContent = data.decision;
+        decisionEl.className = `decision ${data.prediction === 1 ? "risk" : "safe"}`;
+        predictionMeta.textContent = `Prediction class: ${data.prediction}`;
+        statusMeta.textContent = `Threshold ${data.threshold.toFixed(2)} · snapshot inference`;
+      };
+
+      const renderPredictionError = (message) => {
+        decisionEl.textContent = "Inference unavailable";
+        decisionEl.className = "decision risk";
+        predictionMeta.textContent = "Prediction class: --";
+        statusMeta.textContent = message;
+        probFill.style.width = "0%";
+        probLabel.textContent = "0.00%";
+      };
+
+      let timer = null;
+
+      const requestPrediction = async () => {
+        try {
+          const response = await fetch("/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(snapshotPayload()),
+          });
+          if (!response.ok) {
+            const detail = await response.json();
+            throw new Error(detail.detail || "Prediction failed");
+          }
+          renderPrediction(await response.json());
+        } catch (error) {
+          renderPredictionError(error.message);
+        }
+      };
+
+      const schedulePrediction = () => {
+        updateLabels();
+        clearTimeout(timer);
+        timer = setTimeout(requestPrediction, 150);
+      };
+
+      const setFile = (file) => {
+        selectedFile = file;
+        if (file) {
+          dropzone.querySelector("strong").textContent = file.name;
+          dropzone.querySelector("p").textContent = `${(file.size / 1024).toFixed(1)} KB ready for analysis`;
+        }
+      };
+
+      const renderWarnings = (warnings) => {
+        if (!warnings.length) {
+          warningList.classList.add("hidden");
+          warningList.innerHTML = "";
+          return;
+        }
+        warningList.classList.remove("hidden");
+        warningList.innerHTML = warnings
+          .map((warning) => `<div class="warning-chip">${warning}</div>`)
+          .join("");
+      };
+
+      const renderSummary = (summary) => {
+        summaryPanel.classList.remove("hidden");
+        document.getElementById("summary-rows").textContent = summary.n_rows;
+        document.getElementById("summary-anomalies").textContent = summary.n_anomalies;
+        document.getElementById("summary-rate").textContent = `${(summary.anomaly_rate * 100).toFixed(2)}%`;
+        const peak = summary.top_thermal_peaks[0];
+        document.getElementById("summary-peak").textContent = peak
+          ? `${Number(peak.cpu_temp).toFixed(1)} °C`
+          : "--";
+      };
+
+      const renderChart = (records) => {
+        const labels = records.map((record) => record.timestamp);
+        const cpuTemp = records.map((record) => Number(record.cpu_temp));
+        const cpuUsage = records.map((record) => Number(record.cpu_usage));
+        const anomalyPoints = records
+          .filter((record) => record.prediction === 1)
+          .map((record) => ({
+            x: record.timestamp,
+            y: Number(record.cpu_temp),
+          }));
+
+        if (chart) {
+          chart.destroy();
+        }
+
+        chart = new Chart(document.getElementById("timeline-chart"), {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "CPU Temp",
+                data: cpuTemp,
+                borderColor: "#f4a261",
+                backgroundColor: "rgba(244, 162, 97, 0.18)",
+                tension: 0.25,
+                pointRadius: 0,
+              },
+              {
+                label: "CPU Usage",
+                data: cpuUsage,
+                borderColor: "#59c3c3",
+                backgroundColor: "rgba(89, 195, 195, 0.18)",
+                tension: 0.25,
+                pointRadius: 0,
+              },
+              {
+                type: "scatter",
+                label: "Predicted anomaly",
+                data: anomalyPoints,
+                borderColor: "#ff6b6b",
+                backgroundColor: "#ff6b6b",
+                pointRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                labels: { color: "#f7f8fb" },
+              },
+            },
+            scales: {
+              x: {
+                ticks: { color: "#9ba4c7", maxRotation: 0, autoSkip: true },
+                grid: { color: "rgba(255,255,255,0.06)" },
+              },
+              y: {
+                ticks: { color: "#9ba4c7" },
+                grid: { color: "rgba(255,255,255,0.06)" },
+              },
+            },
+          },
+        });
+      };
+
+      const analyzeCsv = async () => {
+        if (!selectedFile) {
+          renderWarnings(["Select a CSV file before analysis."]);
+          return;
+        }
+
+        analyzeBtn.disabled = true;
+        analyzeBtn.textContent = "Analyzing...";
+        try {
+          const formData = new FormData();
+          formData.append("file", selectedFile);
+          const response = await fetch("/upload_csv", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.detail || "CSV analysis failed");
+          }
+          latestSessionId = data.session_id;
+          downloadBtn.disabled = false;
+          renderWarnings(data.warnings || []);
+          renderSummary(data.summary);
+          renderChart(data.records);
+        } catch (error) {
+          renderWarnings([error.message]);
+        } finally {
+          analyzeBtn.disabled = false;
+          analyzeBtn.textContent = "Analyze CSV";
+        }
+      };
+
+      const downloadResults = async () => {
+        if (!latestSessionId) {
+          return;
+        }
+        const response = await fetch("/download_results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: latestSessionId }),
+        });
+        if (!response.ok) {
+          const detail = await response.json();
+          renderWarnings([detail.detail || "Download failed"]);
+          return;
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `techstream_analysis_${latestSessionId}.csv`;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+      };
+
+      const appendBubble = (role, html) => {
+        const bubble = document.createElement("div");
+        bubble.className = `bubble ${role}`;
+        bubble.innerHTML = html;
+        chatLog.appendChild(bubble);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      };
+
+      const renderCitations = (citations) => {
+        if (!citations.length) {
+          return "";
+        }
+        const blocks = citations.map((citation, index) => `
+          <details>
+            <summary>Citation ${index + 1} · ${citation.source}:${citation.start_line}</summary>
+            <p class="muted">${citation.snippet}</p>
+          </details>
+        `);
+        return `<div class="citations">${blocks.join("")}</div>`;
+      };
+
+      const askRag = async (event) => {
+        event.preventDefault();
+        const question = chatInput.value.trim();
+        if (!question) {
+          return;
+        }
+
+        appendBubble("user", question.replace(/\n/g, "<br />"));
+        chatInput.value = "";
+        chatSend.disabled = true;
+        chatSend.textContent = "Thinking...";
+
+        try {
+          const response = await fetch("/ask", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.detail || "RAG request failed");
+          }
+          appendBubble(
+            "assistant",
+            `${data.answer.replace(/\n/g, "<br />")}${renderCitations(data.citations || [])}`
+          );
+        } catch (error) {
+          appendBubble("assistant", `<span class="warning">${error.message}</span>`);
+        } finally {
+          chatSend.disabled = false;
+          chatSend.textContent = "Ask";
+        }
+      };
+
+      dropzone.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", (event) => setFile(event.target.files[0]));
+      ["dragenter", "dragover"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropzone.classList.add("dragover");
+        });
+      });
+      ["dragleave", "drop"].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropzone.classList.remove("dragover");
+        });
+      });
+      dropzone.addEventListener("drop", (event) => {
+        const file = event.dataTransfer.files[0];
+        if (file) {
+          setFile(file);
+        }
+      });
+
+      analyzeBtn.addEventListener("click", analyzeCsv);
+      downloadBtn.addEventListener("click", downloadResults);
+      chatForm.addEventListener("submit", askRag);
+      sliders.forEach((slider) => slider.addEventListener("input", schedulePrediction));
+
+      updateLabels();
+      requestPrediction();
+    </script>
+  </body>
+</html>

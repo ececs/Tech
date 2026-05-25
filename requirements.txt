@@ -6,6 +6,11 @@ seaborn
 scikit-learn
 ipykernel
 pytest
+fastapi
+uvicorn
+jinja2
+python-multipart
+pyarrow
 
 
 
@@ -29,4 +34,3 @@ langchain-ollama
 langchain-huggingface
 faiss-cpu
 trafilatura
-
