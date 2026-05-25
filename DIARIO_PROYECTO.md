@@ -203,9 +203,45 @@ Hallazgos:
 
 ---
 
+## ✅ Fase 6.A: Asistente RAG en CLI (Completada por Claude Opus 4.7)
+
+### Qué se ha construido:
+**[src/rag_assistant.py](file:///Users/daldo/VsCode/Tech/src/rag_assistant.py)** — `python -m src.rag_assistant "<pregunta>"` o `--interactive` para REPL. Pipeline:
+1. **Carga e ingesta**: lee `README.md`, `DIARIO_PROYECTO.md`, `GUION_VIDEO.md` y los trocea con `RecursiveCharacterTextSplitter` (chunk_size=800, overlap=100, separadores jerárquicos por encabezados Markdown).
+2. **Embeddings**: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (12 layers, 118 M params, soporte nativo ES/EN — clave porque el corpus mezcla ambos idiomas).
+3. **Vector store**: FAISS local persistido en `artifacts/rag_index/`, reutilizado entre ejecuciones (flag `--rebuild` para forzar).
+4. **Generación**: cliente `OllamaLLM` (`langchain-ollama`) apuntando a `http://192.168.31.181:11434`, modelo `llama3.2:3B-Q4_K_M` en la RTX 4070 Super remota.
+5. **Prompt**: instrucción en español que obliga al modelo a responder solo con información de los pasajes y citar el archivo fuente entre paréntesis.
+
+### Justificación técnica del modelo de embeddings:
+La primera iteración con `all-MiniLM-L6-v2` (solo inglés) **no recuperaba** los chunks con `pos_weight=18.82/4.70` aunque estaban en los docs. El cambio al modelo multilingüe (`paraphrase-multilingual-MiniLM-L12-v2`) los situó en el top-1 inmediatamente — lección para corpus mixtos ES/EN.
+
+### Verificación con 3 preguntas técnicas:
+| # | Pregunta | Respuesta del LLM | Citas correctas |
+|---|---|---|---|
+| 1 | "¿Qué pos_weight efectivo usa el MLP y cuál fue el crudo?" | "Efectivo 4.70 (escala 0.25), crudo 18.82" | DIARIO ✅ |
+| 2 | "¿Por qué el GRU pierde frente al MLP?" | Explica `seq_len=5` corto y +7 FP que compensan +1 recall | DIARIO ✅ |
+| 3 | "¿Cuál es el umbral de decisión óptimo y cómo se calibró?" | "0.71 calibrado sobre la curva PR de validación" | README ✅ |
+
+### Configuración por defecto (sobrescribible):
+* `--ollama-url http://192.168.31.181:11434`
+* `--ollama-model llama3.2`
+* `--embedding-model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+* `--top-k 6` chunks recuperados
+* `--index-dir artifacts/rag_index/`
+
+### Stack RAG completo cubre los requisitos de la oferta:
+* **LangChain** ✅ (`langchain-ollama`, `langchain-huggingface`, `langchain-community`, `langchain-text-splitters`)
+* **FAISS** ✅ (vector store local)
+* **Sentence Transformers / Embeddings** ✅
+* **LLM remoto** ✅ (Ollama en GPU dedicada)
+* **Inferencia con citas y grounding estricto** ✅
+
+---
+
 ## 🚀 Próximos Pasos (Propuesta de Producción)
-1. **Sequences más largas:** Si se amplía el modelo de fallo a depender de ventanas más largas (30-60 min de telemetría), reabrir la comparación con GRU/LSTM/Conv1D — es donde el sesgo recurrente debería superar al MLP.
-2. **Despliegue RAG / LLM:** La GPU RTX 4070S remota y el servicio de Ollama en red se sugieren como infraestructura ideal para desplegar el chatbot de consulta sobre manuales técnicos del servidor, reduciendo costes y latencia en local.
+1. **Dashboard FastAPI** (Fase 6.B+): aplicación web local con sliders, subida de CSV, gráficos Chart.js y chat RAG integrado.
+2. **Sequences más largas**: si se amplía el modelo de fallo a depender de ventanas más largas (30-60 min de telemetría), reabrir la comparación con GRU/LSTM/Conv1D — es donde el sesgo recurrente debería superar al MLP.
 
 
 ---

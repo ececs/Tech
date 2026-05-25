@@ -25,6 +25,8 @@ sentence-transformers
 # RAG & Vector Databases
 langchain
 langchain-community
+langchain-ollama
+langchain-huggingface
 faiss-cpu
 trafilatura
 
