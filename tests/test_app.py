@@ -177,6 +177,38 @@ def test_simulation_stream_returns_rows_with_ground_truth(
     assert sample["failure_actual"] in {0, 1}
 
 
+def test_analyze_preset_runs_scenario_through_batch_pipeline(
+    ready_runtime: RuntimeResources, ready_rag: RAGResources, tmp_path
+) -> None:
+    client = TestClient(
+        create_app(
+            runtime_override=ready_runtime,
+            rag_override=ready_rag,
+            sessions_dir_override=tmp_path,
+        )
+    )
+    response = client.post("/analyze_preset", json={"scenario_id": "ramp_up"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["session_id"]
+    assert payload["summary"]["n_rows"] > 0
+    assert len(payload["records"]) == payload["summary"]["n_rows"]
+    # The analyzed CSV must be downloadable through the regular endpoint.
+    download = client.post(
+        "/download_results", json={"session_id": payload["session_id"]}
+    )
+    assert download.status_code == 200
+    assert "probability" in download.text
+
+
+def test_analyze_preset_rejects_unknown_scenario(
+    ready_runtime: RuntimeResources, ready_rag: RAGResources
+) -> None:
+    client = TestClient(create_app(runtime_override=ready_runtime, rag_override=ready_rag))
+    response = client.post("/analyze_preset", json={"scenario_id": "does_not_exist"})
+    assert response.status_code == 404
+
+
 def test_simulation_stream_rejects_invalid_bounds(
     ready_runtime: RuntimeResources, ready_rag: RAGResources
 ) -> None:

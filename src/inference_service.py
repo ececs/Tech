@@ -78,6 +78,29 @@ def list_simulation_scenarios() -> list[dict[str, object]]:
     return [dict(scenario) for scenario in SIMULATION_SCENARIOS]
 
 
+def load_simulation_window_as_dataframe(start: int, length: int) -> pd.DataFrame:
+    """Return the same slice as :func:`load_simulation_window` shaped as the upload DataFrame.
+
+    The frame matches what :func:`infer_uploaded_dataframe` expects:
+    ``timestamp`` plus the four feature columns. The ground-truth label
+    is intentionally dropped so the batch pipeline scores it as if the
+    user had uploaded an unlabeled CSV.
+    """
+    rows = load_simulation_window(start=start, length=length)
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": row["timestamp"],
+                "cpu_usage": row["cpu_usage"],
+                "mem_usage": row["mem_usage"],
+                "network_traffic": row["network_traffic"],
+                "cpu_temp": row["cpu_temp"],
+            }
+            for row in rows
+        ]
+    )
+
+
 def load_simulation_window(
     start: int,
     length: int,

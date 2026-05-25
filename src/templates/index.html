@@ -237,6 +237,13 @@
         flex-wrap: wrap;
       }
 
+      .preset-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+
       .sim-controls {
         display: flex;
         gap: 14px;
@@ -481,7 +488,20 @@
           <h2>Batch CSV Analysis</h2>
           <p class="muted">
             Sube un CSV con `timestamp`, `cpu_usage`, `mem_usage`, `network_traffic` y `cpu_temp`.
+            Si no tienes uno a mano, prueba uno de los presets curados del test split.
           </p>
+
+          <div class="preset-row">
+            <button id="preset-ramp_up" type="button" class="ghost" data-scenario="ramp_up">
+              Ramp-up to crisis
+            </button>
+            <button id="preset-hot_cluster" type="button" class="ghost" data-scenario="hot_cluster">
+              Hot cluster
+            </button>
+            <button id="preset-calm_baseline" type="button" class="ghost" data-scenario="calm_baseline">
+              Calm baseline
+            </button>
+          </div>
 
           <label class="dropzone" id="dropzone">
             <input id="file-input" type="file" accept=".csv" class="hidden" />
@@ -894,6 +914,14 @@
         });
       };
 
+      const renderBatchResult = (data) => {
+        latestSessionId = data.session_id;
+        downloadBtn.disabled = false;
+        renderWarnings(data.warnings || []);
+        renderSummary(data.summary);
+        renderChart(data.records);
+      };
+
       const analyzeCsv = async () => {
         if (!selectedFile) {
           renderWarnings(["Select a CSV file before analysis."]);
@@ -913,16 +941,35 @@
           if (!response.ok) {
             throw new Error(data.detail || "CSV analysis failed");
           }
-          latestSessionId = data.session_id;
-          downloadBtn.disabled = false;
-          renderWarnings(data.warnings || []);
-          renderSummary(data.summary);
-          renderChart(data.records);
+          renderBatchResult(data);
         } catch (error) {
           renderWarnings([error.message]);
         } finally {
           analyzeBtn.disabled = false;
           analyzeBtn.textContent = "Analyze CSV";
+        }
+      };
+
+      const analyzePreset = async (scenarioId, button) => {
+        const previousLabel = button.textContent;
+        button.disabled = true;
+        button.textContent = "Analyzing...";
+        try {
+          const response = await fetch("/analyze_preset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scenario_id: scenarioId }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.detail || "Preset analysis failed");
+          }
+          renderBatchResult(data);
+        } catch (error) {
+          renderWarnings([error.message]);
+        } finally {
+          button.disabled = false;
+          button.textContent = previousLabel;
         }
       };
 
@@ -1096,22 +1143,45 @@
             labels: [],
             datasets: [
               {
-                label: "cpu_temp",
+                label: "cpu_temp (°C)",
                 data: [],
                 borderColor: "#f4a261",
                 backgroundColor: "rgba(244, 162, 97, 0.15)",
                 yAxisID: "y",
                 tension: 0.25,
                 pointRadius: 0,
+                borderWidth: 2,
               },
               {
-                label: "cpu_usage",
+                label: "mem_usage (%)",
+                data: [],
+                borderColor: "#e76f51",
+                backgroundColor: "rgba(231, 111, 81, 0.12)",
+                yAxisID: "y",
+                tension: 0.25,
+                pointRadius: 0,
+                borderWidth: 2,
+              },
+              {
+                label: "cpu_usage (%)",
                 data: [],
                 borderColor: "#4a9efd",
                 backgroundColor: "rgba(74, 158, 253, 0.12)",
                 yAxisID: "y",
                 tension: 0.25,
                 pointRadius: 0,
+                borderWidth: 1.5,
+              },
+              {
+                label: "network (MB/s)",
+                data: [],
+                borderColor: "#2a9d8f",
+                backgroundColor: "rgba(42, 157, 143, 0.08)",
+                yAxisID: "y",
+                tension: 0.25,
+                pointRadius: 0,
+                borderWidth: 1,
+                borderDash: [4, 4],
               },
               {
                 label: "probability",
@@ -1121,6 +1191,7 @@
                 yAxisID: "y1",
                 tension: 0.2,
                 pointRadius: 0,
+                borderWidth: 2,
               },
               {
                 label: "predicted anomaly",
@@ -1172,17 +1243,18 @@
         simChart.update("none");
       };
 
+      // Index of the scatter dataset inside simChart.data.datasets.
+      const SCATTER_DATASET_INDEX = 5;
+
       const trimSeries = () => {
         const labels = simChart.data.labels;
         if (labels.length <= SIM_CHART_WINDOW) return;
         const excess = labels.length - SIM_CHART_WINDOW;
         labels.splice(0, excess);
         simChart.data.datasets.forEach((ds, index) => {
-          if (index === 3) {
-            // scatter points use {x, y}; drop those whose x is past the window
-            ds.data = ds.data.filter((point) =>
-              labels.includes(point.x),
-            );
+          if (index === SCATTER_DATASET_INDEX) {
+            // Scatter points use {x, y}; drop those whose x is past the window.
+            ds.data = ds.data.filter((point) => labels.includes(point.x));
           } else {
             ds.data.splice(0, excess);
           }
@@ -1194,10 +1266,15 @@
         const label = row.timestamp.slice(11); // HH:MM:SS only
         simChart.data.labels.push(label);
         simChart.data.datasets[0].data.push(row.cpu_temp);
-        simChart.data.datasets[1].data.push(row.cpu_usage);
-        simChart.data.datasets[2].data.push(probability);
+        simChart.data.datasets[1].data.push(row.mem_usage);
+        simChart.data.datasets[2].data.push(row.cpu_usage);
+        simChart.data.datasets[3].data.push(row.network_traffic);
+        simChart.data.datasets[4].data.push(probability);
         if (predicted === 1) {
-          simChart.data.datasets[3].data.push({ x: label, y: row.cpu_temp });
+          simChart.data.datasets[SCATTER_DATASET_INDEX].data.push({
+            x: label,
+            y: row.cpu_temp,
+          });
         }
         trimSeries();
         simChart.update("none");
@@ -1419,6 +1496,9 @@
 
       analyzeBtn.addEventListener("click", analyzeCsv);
       downloadBtn.addEventListener("click", downloadResults);
+      document.querySelectorAll("[data-scenario]").forEach((button) => {
+        button.addEventListener("click", () => analyzePreset(button.dataset.scenario, button));
+      });
       chatForm.addEventListener("submit", askRag);
       // Submit the chat on Enter (Shift+Enter keeps newline) so the textarea
       // behaves like a modern chat input instead of forcing a button click.

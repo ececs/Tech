@@ -23,6 +23,7 @@ from src.inference_service import (
     list_simulation_scenarios,
     load_runtime_resources,
     load_simulation_window,
+    load_simulation_window_as_dataframe,
     predict_snapshot,
     predict_trend,
 )
@@ -139,6 +140,12 @@ class SimulationStreamResponse(BaseModel):
     start: int
     length: int
     rows: list[SimulationRow]
+
+
+class AnalyzePresetRequest(BaseModel):
+    """Request to score one of the curated CSV slices in batch mode."""
+
+    scenario_id: str = Field(..., min_length=1, max_length=64)
 
 
 class AskRequest(BaseModel):
@@ -271,10 +278,11 @@ def create_app(
         app.state.runtime = runtime_override
     if rag_override is not None:
         app.state.rag = rag_override
-    if sessions_dir_override is not None:
-        app.state.sessions_dir = sessions_dir_override
-    if session_limit_override is not None:
-        app.state.session_limit = session_limit_override
+    # sessions_dir/session_limit are trivial values, so always seed them at
+    # construction time. This keeps TestClient(app) (no lifespan) and the
+    # context-managed form aligned, and avoids partial-override gaps.
+    app.state.sessions_dir = sessions_dir_override or SESSIONS_DIR
+    app.state.session_limit = session_limit_override or SESSION_LIMIT
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request) -> Any:
@@ -368,6 +376,50 @@ def create_app(
             raise HTTPException(status_code=500, detail="Failed to process uploaded CSV") from exc
 
         session_id = compute_session_id(file_bytes)
+        sessions_dir: Path = request.app.state.sessions_dir
+        persist_session_dataframe(session_id, batch_result.processed_df, sessions_dir)
+        purge_old_sessions(sessions_dir, keep=request.app.state.session_limit)
+
+        return UploadResponse(
+            session_id=session_id,
+            summary=UploadSummary(**batch_result.summary),
+            records=[UploadRecord(**record) for record in batch_result.records],
+            warnings=batch_result.warnings,
+        )
+
+    @app.post("/analyze_preset", response_model=UploadResponse)
+    def analyze_preset(
+        payload: AnalyzePresetRequest, request: Request
+    ) -> UploadResponse:
+        runtime: RuntimeResources = request.app.state.runtime
+        scenario = next(
+            (s for s in list_simulation_scenarios() if s["id"] == payload.scenario_id),
+            None,
+        )
+        if scenario is None:
+            raise HTTPException(
+                status_code=404, detail=f"Unknown scenario {payload.scenario_id!r}"
+            )
+        try:
+            dataframe = load_simulation_window_as_dataframe(
+                start=int(scenario["start"]), length=int(scenario["length"])
+            )
+            batch_result: BatchInferenceResult = infer_uploaded_dataframe(
+                dataframe, runtime
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        # Reuse the same session-storage path as /upload_csv so the user can
+        # still download the analysed CSV through /download_results.
+        synthetic_bytes = dataframe.to_csv(index=False).encode("utf-8")
+        session_id = compute_session_id(
+            synthetic_bytes + payload.scenario_id.encode("utf-8")
+        )
         sessions_dir: Path = request.app.state.sessions_dir
         persist_session_dataframe(session_id, batch_result.processed_df, sessions_dir)
         purge_old_sessions(sessions_dir, keep=request.app.state.session_limit)
