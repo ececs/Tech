@@ -244,6 +244,14 @@
         margin-bottom: 12px;
       }
 
+      .trend-chart-wrap {
+        margin-top: 14px;
+      }
+
+      .mini-chart-wrap {
+        min-height: 200px;
+      }
+
       .sim-controls {
         display: flex;
         gap: 14px;
@@ -482,6 +490,12 @@
               Move the sliders 5 times to build a real temporal window.
             </span>
           </div>
+          <div id="trend-chart-wrap" class="trend-chart-wrap hidden">
+            <p class="meta" id="trend-result-meta">--</p>
+            <div class="chart-wrap mini-chart-wrap">
+              <canvas id="trend-chart"></canvas>
+            </div>
+          </div>
         </article>
 
         <article class="panel">
@@ -680,6 +694,9 @@
       const chatSend = document.getElementById("chat-send");
       const trendBtn = document.getElementById("trend-btn");
       const trendHint = document.getElementById("trend-hint");
+      const trendChartWrap = document.getElementById("trend-chart-wrap");
+      const trendResultMeta = document.getElementById("trend-result-meta");
+      let trendChart = null;
 
       let selectedFile = null;
       let latestSessionId = null;
@@ -784,6 +801,98 @@
         }, 150);
       };
 
+      const renderTrendChart = (readings, probability, predicted, threshold) => {
+        trendChartWrap.classList.remove("hidden");
+        const labels = readings.map((_, index) => {
+          const offset = readings.length - 1 - index;
+          return offset === 0 ? "t" : `t-${offset}`;
+        });
+        const anomalyPoint =
+          predicted === 1
+            ? [{ x: labels[labels.length - 1], y: readings[readings.length - 1].cpu_temp }]
+            : [];
+        const datasets = [
+          {
+            label: "cpu_temp (°C)",
+            data: readings.map((r) => r.cpu_temp),
+            borderColor: "#f4a261",
+            backgroundColor: "rgba(244, 162, 97, 0.18)",
+            yAxisID: "y",
+            tension: 0.25,
+            borderWidth: 2,
+          },
+          {
+            label: "mem_usage (%)",
+            data: readings.map((r) => r.mem_usage),
+            borderColor: "#e76f51",
+            backgroundColor: "rgba(231, 111, 81, 0.15)",
+            yAxisID: "y",
+            tension: 0.25,
+            borderWidth: 2,
+          },
+          {
+            label: "cpu_usage (%)",
+            data: readings.map((r) => r.cpu_usage),
+            borderColor: "#4a9efd",
+            yAxisID: "y",
+            tension: 0.25,
+            borderWidth: 1.5,
+          },
+          {
+            label: "network (MB/s)",
+            data: readings.map((r) => r.network_traffic),
+            borderColor: "#2a9d8f",
+            yAxisID: "y",
+            tension: 0.25,
+            borderWidth: 1,
+            borderDash: [4, 4],
+          },
+          {
+            label: "predicted anomaly",
+            data: anomalyPoint,
+            type: "scatter",
+            showLine: false,
+            pointBackgroundColor: "#ff5470",
+            pointBorderColor: "#ff5470",
+            pointRadius: 8,
+            yAxisID: "y",
+          },
+        ];
+
+        if (trendChart) {
+          trendChart.destroy();
+        }
+        trendChart = new Chart(document.getElementById("trend-chart"), {
+          type: "line",
+          data: { labels, datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                ticks: { color: "#cfd6e4" },
+                grid: { color: "rgba(255,255,255,0.05)" },
+              },
+              x: {
+                ticks: { color: "#cfd6e4" },
+                grid: { color: "rgba(255,255,255,0.04)" },
+              },
+            },
+            plugins: {
+              legend: { labels: { color: "#cfd6e4" } },
+            },
+          },
+        });
+
+        const verdict = predicted === 1 ? "ANOMALY risk" : "stable";
+        const last = readings[readings.length - 1];
+        trendResultMeta.textContent =
+          `Window of ${readings.length} reading${readings.length === 1 ? "" : "s"} · ` +
+          `last: CPU ${last.cpu_usage.toFixed(1)}% · Mem ${last.mem_usage.toFixed(1)}% · ` +
+          `Temp ${last.cpu_temp.toFixed(1)}°C · ` +
+          `probability ${(probability * 100).toFixed(2)}% (thr ${threshold.toFixed(2)}) → ${verdict}`;
+      };
+
       const requestTrendPrediction = async () => {
         if (trendBuffer.length === 0) {
           return;
@@ -791,11 +900,12 @@
         trendBtn.disabled = true;
         const previousLabel = trendBtn.textContent;
         trendBtn.textContent = "Scoring trend…";
+        const snapshotOfBuffer = trendBuffer.map((reading) => ({ ...reading }));
         try {
           const response = await fetch("/predict_window", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ readings: trendBuffer }),
+            body: JSON.stringify({ readings: snapshotOfBuffer }),
           });
           if (!response.ok) {
             const detail = await response.json();
@@ -805,9 +915,17 @@
           renderPrediction(data);
           statusMeta.textContent = `Threshold ${data.threshold.toFixed(
             2
-          )} · trend window of ${trendBuffer.length}/${TREND_WINDOW} readings`;
+          )} · trend window of ${snapshotOfBuffer.length}/${TREND_WINDOW} readings`;
+          renderTrendChart(
+            snapshotOfBuffer,
+            data.probability,
+            data.prediction,
+            data.threshold,
+          );
         } catch (error) {
           renderPredictionError(error.message);
+          trendResultMeta.textContent = `Trend prediction failed: ${error.message}`;
+          trendChartWrap.classList.remove("hidden");
         } finally {
           trendBtn.disabled = false;
           trendBtn.textContent = previousLabel;
