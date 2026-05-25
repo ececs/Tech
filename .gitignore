@@ -27,6 +27,12 @@ best_model.pth
 training_curves.png
 temp_data.txt
 results/
+*.jsonl
+sweep_results.jsonl
+sweep_log.txt
+artifacts/
+.claude/
+
 
 # Carpetas de datos locales
 data/

@@ -2,8 +2,11 @@
 numpy
 pandas
 matplotlib
+seaborn
 scikit-learn
 ipykernel
+pytest
+
 
 
 # Deep Learning (PyTorch)
