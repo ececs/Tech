@@ -101,6 +101,7 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 20px;
+        align-items: start;
       }
 
       .panel {
@@ -490,12 +491,6 @@
               Move the sliders 5 times to build a real temporal window.
             </span>
           </div>
-          <div id="trend-chart-wrap" class="trend-chart-wrap hidden">
-            <p class="meta" id="trend-result-meta">--</p>
-            <div class="chart-wrap mini-chart-wrap">
-              <canvas id="trend-chart"></canvas>
-            </div>
-          </div>
         </article>
 
         <article class="panel">
@@ -553,8 +548,16 @@
         </article>
       </section>
 
+      <section id="trend-chart-wrap" class="panel hidden">
+        <h2>Trend Window Result</h2>
+        <p class="muted" id="trend-result-meta">--</p>
+        <div class="chart-wrap">
+          <canvas id="trend-chart"></canvas>
+        </div>
+      </section>
+
       <section class="panel">
-        <h2>Temporal View</h2>
+        <h2>Batch Temporal View</h2>
         <p class="muted">
           CPU temp in orange, CPU usage in blue, predicted anomalies as red scatter markers.
         </p>
@@ -807,10 +810,10 @@
           const offset = readings.length - 1 - index;
           return offset === 0 ? "t" : `t-${offset}`;
         });
-        const anomalyPoint =
-          predicted === 1
-            ? [{ x: labels[labels.length - 1], y: readings[readings.length - 1].cpu_temp }]
-            : [];
+        const lastLabel = labels[labels.length - 1];
+        const lastTemp = readings[readings.length - 1].cpu_temp;
+        const verdictColor = predicted === 1 ? "#ff5470" : "#4ade8e";
+
         const datasets = [
           {
             label: "cpu_temp (°C)",
@@ -820,6 +823,7 @@
             yAxisID: "y",
             tension: 0.25,
             borderWidth: 2,
+            pointRadius: 0,
           },
           {
             label: "mem_usage (%)",
@@ -829,6 +833,7 @@
             yAxisID: "y",
             tension: 0.25,
             borderWidth: 2,
+            pointRadius: 0,
           },
           {
             label: "cpu_usage (%)",
@@ -837,6 +842,7 @@
             yAxisID: "y",
             tension: 0.25,
             borderWidth: 1.5,
+            pointRadius: 0,
           },
           {
             label: "network (MB/s)",
@@ -846,15 +852,41 @@
             tension: 0.25,
             borderWidth: 1,
             borderDash: [4, 4],
+            pointRadius: 0,
           },
           {
-            label: "predicted anomaly",
-            data: anomalyPoint,
+            // Single-point bar visualising probability on the right axis.
+            label: `probability ${(probability * 100).toFixed(1)}%`,
+            data: labels.map((label, idx) =>
+              idx === labels.length - 1 ? probability : null,
+            ),
+            borderColor: "#9d4edd",
+            backgroundColor: "rgba(157, 78, 221, 0.4)",
+            yAxisID: "y1",
+            type: "bar",
+            barThickness: 16,
+          },
+          {
+            // Horizontal threshold reference line across the whole window.
+            label: `threshold ${threshold.toFixed(2)}`,
+            data: labels.map(() => threshold),
+            borderColor: "rgba(255, 255, 255, 0.5)",
+            borderDash: [6, 4],
+            borderWidth: 1.5,
+            yAxisID: "y1",
+            pointRadius: 0,
+            fill: false,
+          },
+          {
+            // Verdict marker — always shown so the user has something to
+            // anchor to; colour signals the prediction class.
+            label: predicted === 1 ? "ANOMALY predicted" : "stable verdict",
+            data: [{ x: lastLabel, y: lastTemp }],
             type: "scatter",
             showLine: false,
-            pointBackgroundColor: "#ff5470",
-            pointBorderColor: "#ff5470",
-            pointRadius: 8,
+            pointBackgroundColor: verdictColor,
+            pointBorderColor: verdictColor,
+            pointRadius: predicted === 1 ? 9 : 6,
             yAxisID: "y",
           },
         ];
@@ -870,8 +902,19 @@
             maintainAspectRatio: false,
             scales: {
               y: {
+                type: "linear",
+                position: "left",
                 ticks: { color: "#cfd6e4" },
                 grid: { color: "rgba(255,255,255,0.05)" },
+              },
+              y1: {
+                type: "linear",
+                position: "right",
+                min: 0,
+                max: 1,
+                ticks: { color: "#cfd6e4" },
+                grid: { drawOnChartArea: false },
+                title: { display: true, text: "probability", color: "#cfd6e4" },
               },
               x: {
                 ticks: { color: "#cfd6e4" },
