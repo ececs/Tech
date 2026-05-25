@@ -700,7 +700,7 @@
         </article>
       </section>
 
-      <section class="panel">
+      <section id="temporal-view-section" class="panel hidden">
         <h2>Temporal View</h2>
         <p class="muted" id="temporal-view-meta">
           Renders either the trend window (after pressing Apply trend) or the full
@@ -1134,6 +1134,7 @@
       };
 
       const renderTrendChart = (readings, probability, predicted, threshold) => {
+        document.getElementById("temporal-view-section").classList.remove("hidden");
         const labels = readings.map((_, index) => {
           const offset = readings.length - 1 - index;
           return offset === 0 ? "t" : `t-${offset}`;
@@ -1340,6 +1341,7 @@
       };
 
       const renderChart = (records) => {
+        document.getElementById("temporal-view-section").classList.remove("hidden");
         const labels = records.map((record) => record.timestamp);
         const cpuTemp = records.map((record) => Number(record.cpu_temp));
         const cpuUsage = records.map((record) => Number(record.cpu_usage));
