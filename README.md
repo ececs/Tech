@@ -53,7 +53,7 @@ The deep learning model is an optimized Multi-Layer Perceptron (MLP) implemented
 * **Hidden Layer 1:** 64 neurons $\rightarrow$ `BatchNorm1d` $\rightarrow$ `ReLU` $\rightarrow$ `Dropout(0.3)`.
 * **Hidden Layer 2:** 32 neurons $\rightarrow$ `BatchNorm1d` $\rightarrow$ `ReLU` $\rightarrow$ `Dropout(0.3)`.
 * **Output Layer:** 1 neuron returning raw **logits** (no sigmoid applied at the output).
-* **Loss Function:** `BCEWithLogitsLoss` is used for numerical stability. Class imbalance is handled by setting `pos_weight` dynamically from the train split counts ($\text{pos\_weight} \approx 20.2$ raw, scaled to $5.05$ after grid search).
+* **Loss Function:** `BCEWithLogitsLoss` is used for numerical stability. Class imbalance is handled by setting `pos_weight` dynamically from the train split counts ($\text{pos\_weight} \approx 18.82$ raw, scaled by $0.25$ to an effective value of $4.70$ after the grid search).
 
 ---
 
@@ -69,6 +69,9 @@ The sweep execution times were:
 
 *Analysis:* Since the MLP model is tiny (~3,000 parameters) and the dataset easily fits in memory, the compute requirements are negligible. The time is dominated by memory transfers between CPU and GPU (`to(device)`) and Python interpreter overhead. This shows that the training is **I/O-bound**, and parallel GPU computing does not speed it up compared to Apple's unified memory architecture.
 
+#### ⚠️ MPS Pitfall: `non_blocking=True` Corrupts Tensors
+While integrating PyTorch with Apple Silicon (`mps`), we observed that calling `.to(device, non_blocking=True)` inside the training loop produced corrupted loss values (`loss.item()` returned magnitudes of ~1e23). The optimization is a documented CUDA convention that **does not behave the same way on MPS**: with overlapped CPU→MPS transfers, the kernel reads partially-written buffers. The fix is to drop the flag — plain `tensor.to(device)` is correct and only marginally slower because of unified memory. This is recorded in [`DIARIO_PROYECTO.md`](DIARIO_PROYECTO.md) so future agents on the project avoid the same trap.
+
 #### Grid Search Optimization:
 The sweep optimized the model by scanning the precision-recall curve on the validation set to find the **best decision threshold** (instead of a static 0.5):
 
@@ -78,8 +81,11 @@ The sweep optimized the model by scanning the precision-recall curve on the vali
 | **Validation Precision** | 0.48 | **0.850** |
 | **Validation Recall** | 0.98 | **0.850** |
 | **Optimal Threshold** | 0.50 | **0.710** |
-| **Effective pos_weight** | 20.2 | **5.05** (Scale 0.25) |
-| **Hidden Layers** | (64, 32) | **(128, 64)** |
+| **Effective pos_weight** | 18.82 | **4.70** (Scale 0.25) |
+| **Hidden Layers** | (64, 32) | **(64, 32)** *(unchanged — sweep confirmed the original architecture)* |
+| **Learning rate** | 1e-3 | **3e-3** |
+| **Dropout** | 0.30 | **0.20** |
+| **Batch size** | 128 | **64** |
 
 ---
 
@@ -92,7 +98,7 @@ The sweep optimized the model by scanning the precision-recall curve on the vali
   
   The marginal difference between validation ($0.854$) and test ($0.838$) metrics confirms that the model generalizes robustly and does not suffer from overfitting.
 * **Confusion Matrix:** The resulting confusion matrix (`test_confusion_matrix.png`) shows an outstanding balance, capturing almost all thermal failures while keeping false alarms to a minimum.
-* **Unit Testing:** A suite of 9 tests is implemented in `tests/test_model.py` and run via `pytest`. The tests verify tensor shapes, windowing, feature scaling ranges, and model backward pass compatibility.
+* **Unit Testing:** A suite of 9 tests is implemented in `tests/test_model.py` and run via `pytest`. The tests verify the model I/O tensor shapes (parametrized over batch sizes 1, 8, 32, 128), rejection of inputs with the wrong feature dimension, causal sliding-window construction, MinMax feature scaling into `[0, 1]`, sequential ordering of the temporal split, and that the scaler is fit on training rows only.
 
 ---
 
@@ -105,7 +111,7 @@ Ensure you have Python 3.12+ installed. Create and activate a virtual environmen
 python3 -m venv .venv
 
 # Activate environment
-source .venv/bin/env/activate  # On macOS/Linux
+source .venv/bin/activate  # On macOS/Linux
 # or: .\.venv\Scripts\activate  # On Windows
 
 # Install dependencies
@@ -125,15 +131,22 @@ python -m src.sweep --epochs 30 --patience 7
 ```
 
 ### 4. Train the Final Model
-Train the final model with the optimal parameters:
+Train the final model with the optimal parameters found by the sweep:
 ```bash
-python -m src.train --epochs 50 --batch-size 128 --lr 3e-4 --dropout 0.2 --decision-threshold 0.71 --pos-weight-scale 0.25
+python -m src.train \
+    --epochs 50 \
+    --patience 7 \
+    --batch-size 64 \
+    --lr 3e-3 \
+    --dropout 0.2 \
+    --pos-weight-scale 0.25 \
+    --decision-threshold 0.71
 ```
 
 ### 5. Evaluate on Test Split
-Generate final metrics and the confusion matrix:
+Generate final metrics and the confusion matrix (the threshold is read from the checkpoint by default):
 ```bash
-python -m src.evaluate --model-path best_model.pth --decision-threshold 0.71
+python -m src.evaluate --checkpoint best_model.pth
 ```
 
 ### 6. Run Unit Tests

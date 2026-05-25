@@ -76,7 +76,7 @@ Este documento contiene la estructura detallada paso a paso y el guion narrativo
   >
   > *¿Por qué la 4070 Super fue marginalmente más lenta? Al ser un modelo muy pequeño de solo 3,000 parámetros, el tiempo necesario para transferir los tensores entre la CPU y la GPU a través del bus PCI-e supera con creces el tiempo de cálculo de la GPU. El entrenamiento era **I/O-bound** (cuello de botella de entrada/salida). En cambio, la memoria unificada del chip M4 de Apple Silicon manejó la transferencia de forma mucho más eficiente.*
   >
-  > *El sweep óptimo seleccionó una arquitectura `(128, 64)`, redujo el peso positivo efectivo a **5.05** y determinó que el umbral de decisión perfecto era **0.71**, logrando catapultar el F1-Score de validación desde **0.64 hasta un excelente 0.854**."*
+  > *El sweep confirmó que la arquitectura **(64, 32)** propuesta inicialmente era la adecuada — más capacidad no aportaba mejora — y refinó tres palancas críticas: subió el learning rate a **3e-3**, bajó el dropout a **0.20**, y redujo el peso positivo efectivo de **18.82 hasta 4.70** (escala 0.25). Por último, calibró el umbral de decisión en **0.71** en lugar del clásico 0.5. Con estos cambios el F1-Score de validación pasó de **0.65 a un excelente 0.854**."*
 
 ---
 
