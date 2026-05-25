@@ -15,12 +15,13 @@ El servidor SSH de Windows está **activo** y configurado para aceptar conexione
   ```bash
   ssh eudal@192.168.31.181
   ```
+  *(Dado que ya registramos tu clave SSH pública del Mac, se conectará automáticamente de forma segura sin pedirte contraseña).*
 
 ### Configuración en VS Code (Mac):
 1. Instala la extensión **"Remote - SSH"** (ID: `ms-vscode-remote.remote-ssh`) de Microsoft.
 2. Pulsa el botón verde `><` en la parte inferior izquierda de VS Code y selecciona **Connect to Host...** -> **Add New SSH Host...**
 3. Introduce: `ssh eudal@192.168.31.181`
-4. Selecciona **Windows** como sistema operativo cuando te lo pregunte e ingresa tu contraseña del PC.
+4. Selecciona **Windows** como sistema operativo del servidor. Se autenticará automáticamente usando tu clave SSH guardada en tu Mac.
 
 ---
 
