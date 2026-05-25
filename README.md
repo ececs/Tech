@@ -60,7 +60,7 @@ The deep learning model is an optimized Multi-Layer Perceptron (MLP) implemented
 * **Hidden Layer 1:** 64 neurons $\rightarrow$ `BatchNorm1d` $\rightarrow$ `ReLU` $\rightarrow$ `Dropout(0.3)`.
 * **Hidden Layer 2:** 32 neurons $\rightarrow$ `BatchNorm1d` $\rightarrow$ `ReLU` $\rightarrow$ `Dropout(0.3)`.
 * **Output Layer:** 1 neuron returning raw **logits** (no sigmoid applied at the output).
-* **Loss Function:** `BCEWithLogitsLoss` is used for numerical stability. Class imbalance is handled by setting `pos_weight` dynamically from the train split counts ($\text{pos\_weight} \approx 18.82$ raw, scaled by $0.25$ to an effective value of $4.70$ after the grid search).
+* **Loss Function:** `BCEWithLogitsLoss` is used for numerical stability. Class imbalance is handled by setting `pos_weight` dynamically from the train split counts (raw pos_weight or "pos_weight crudo" $\approx 18.82$, scaled by $0.25$ to an effective pos_weight or "pos_weight efectivo" of $4.70$ after the grid search).
 * **Defensive Validation:** Invalid dimensions or dropout values are rejected at construction time to fail fast on bad experiment configurations.
 
 ---
@@ -78,7 +78,7 @@ The sweep execution times were:
 *Analysis:* Since the MLP model is tiny (3,649 parameters) and the dataset easily fits in memory, the compute requirements are negligible. The time is dominated by memory transfers between CPU and GPU (`to(device)`) and Python interpreter overhead. This shows that the training is **I/O-bound**, and parallel GPU computing does not speed it up compared to Apple's unified memory architecture.
 
 #### ⚠️ MPS Pitfall: `non_blocking=True` Corrupts Tensors
-While integrating PyTorch with Apple Silicon (`mps`), we observed that calling `.to(device, non_blocking=True)` inside the training loop produced corrupted loss values (`loss.item()` returned magnitudes of ~1e23). The optimization is a documented CUDA convention that **does not behave the same way on MPS**: with overlapped CPU→MPS transfers, the kernel reads partially-written buffers. The fix is to drop the flag — plain `tensor.to(device)` is correct and only marginally slower because of unified memory. This is recorded in [`DIARIO_PROYECTO.md`](DIARIO_PROYECTO.md) so future agents on the project avoid the same trap.
+While integrating PyTorch with Apple Silicon (`mps`), we observed that calling `.to(device, non_blocking=True)` inside the training loop produced corrupted loss values (`loss.item()` returned magnitudes of ~1e23). The optimization is a documented CUDA convention that **does not behave the same way on MPS**: with overlapped CPU→MPS transfers, the kernel reads partially-written buffers. The fix is to drop the flag — plain `tensor.to(device)` is correct and only marginally slower because of unified memory. This is recorded in the project's development notes so future developers on the project avoid the same trap.
 
 #### Grid Search Optimization:
 The sweep optimized the model by scanning the precision-recall curve on the validation set to find the **best decision threshold** (instead of a static 0.5):
@@ -216,5 +216,18 @@ make docker-build
 make docker-run
 ```
 
-For a presentation-oriented walkthrough, use [DEMO_CHECKLIST.md](DEMO_CHECKLIST.md).
-For interview prep, use [INTERVIEW_GUIDE.md](INTERVIEW_GUIDE.md).
+---
+
+## 🧪 6. GRU Variant & Experimental Comparison (`src/train_gru.py`)
+
+As an extension to the baseline MLP, we implemented a recurrent **GRU-based classifier** (`AnomalyDetectorGRU`) to evaluate if modeling the temporal sequence explicitly yields better results.
+
+### Architectural Comparison
+* **MLP Baseline (3,649 parameters):** Flat feed-forward network processing a flattened 20-dimensional sliding window ($5 \text{ steps} \times 4 \text{ features}$).
+* **GRU Variant (3,681 parameters):** Recurrent network that reshapes the input back to `[batch, seq_len, num_features]` and processes it sequentially.
+
+### Experimental Findings & Conclusions:
+* **Short Sequence Limit:** With a very short sequence length ($5$ minutes), the recurrent bias of the GRU does not provide a clear modeling advantage.
+* **Recall vs. Precision Trade-off:** The GRU slightly improves recall but increases false positives, leading to a worse overall F1-Score balance.
+* **Final Verdict:** The baseline MLP remains the most robust and stable model for this specific sequence length, and is the primary deliverable for production.
+* **Code Separation:** Both training pathways are kept separate (`src/train.py` for MLP and `src/train_gru.py` for GRU) while sharing core training utilities in `src/training_common.py`.

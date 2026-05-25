@@ -11,7 +11,7 @@ from typing import Any
 
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -430,6 +430,25 @@ def create_app(
             records=[UploadRecord(**record) for record in batch_result.records],
             warnings=batch_result.warnings,
         )
+
+    ALLOWED_IMAGES = {
+        "distribucion_variables_fallo.png",
+        "distribution_clases.png",
+        "matriz_correlacion.png",
+        "test_confusion_matrix.png",
+        "test_confusion_matrix_gru.png",
+        "training_curves.png",
+        "training_curves_gru.png",
+    }
+
+    @app.get("/images/{image_name}")
+    def get_image(image_name: str) -> FileResponse:
+        if image_name not in ALLOWED_IMAGES:
+            raise HTTPException(status_code=404, detail="Image not found or access denied")
+        image_path = PROJECT_ROOT / image_name
+        if not image_path.exists():
+            raise HTTPException(status_code=404, detail="Image file does not exist on disk")
+        return FileResponse(image_path)
 
     @app.get("/simulation/scenarios", response_model=list[SimulationScenario])
     def simulation_scenarios() -> list[SimulationScenario]:

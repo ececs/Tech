@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 DEFAULT_DOC_PATHS: tuple[Path, ...] = (
     PROJECT_ROOT / "README.md",
-    PROJECT_ROOT / "DIARIO_PROYECTO.md",
 )
 DEFAULT_INDEX_DIR: Path = PROJECT_ROOT / "artifacts" / "rag_index"
 DEFAULT_OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://192.168.31.181:11434")

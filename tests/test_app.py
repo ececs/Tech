@@ -376,3 +376,22 @@ def test_ask_short_circuits_on_greeting(
     payload = response.json()
     assert payload["answer"] == GREETING_RESPONSE
     assert payload["citations"] == []
+
+
+def test_get_image_success(ready_runtime: RuntimeResources, ready_rag: RAGResources) -> None:
+    client = TestClient(create_app(runtime_override=ready_runtime, rag_override=ready_rag))
+    response = client.get("/images/distribution_clases.png")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+
+
+def test_get_image_not_allowed(ready_runtime: RuntimeResources, ready_rag: RAGResources) -> None:
+    client = TestClient(create_app(runtime_override=ready_runtime, rag_override=ready_rag))
+    
+    # Non-existent image
+    response = client.get("/images/does_not_exist.png")
+    assert response.status_code == 404
+    
+    # Existing file but not allowed (e.g. generate_data.py)
+    response = client.get("/images/generate_data.py")
+    assert response.status_code == 404
