@@ -216,9 +216,25 @@
         border: 1px solid rgba(255, 255, 255, 0.08);
       }
 
+      button.ghost {
+        background: rgba(74, 222, 174, 0.12);
+        color: var(--accent);
+        border: 1px solid rgba(74, 222, 174, 0.35);
+        padding: 10px 16px;
+        font-size: 0.9rem;
+      }
+
       button:disabled {
         opacity: 0.45;
         cursor: not-allowed;
+      }
+
+      .trend-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 14px;
+        flex-wrap: wrap;
       }
 
       .hidden {
@@ -327,8 +343,14 @@
           batch analysis sobre CSV temporal para explorar anomalías y picos térmicos.
         </p>
         <p class="note">
-          El modo snapshot repite la misma lectura 5 veces para llenar la ventana del modelo.
-          El modo CSV usa ventanas causales con padding al inicio para poder puntuar toda la serie.
+          El modo <strong>snapshot</strong> repite la misma lectura 5 veces para
+          llenar la ventana del modelo y por eso es conservador: el modelo se
+          entrenó sobre secuencias con dinámica temporal real, así que pide
+          valores cercanos al máximo (CPU&nbsp;≥&nbsp;95, mem&nbsp;≥&nbsp;95,
+          temp&nbsp;≥&nbsp;100) antes de declarar anomalía. Usa
+          <strong>Apply trend</strong> para puntuar los últimos 5 estados de
+          los sliders como ventana real, o el modo CSV para una evaluación
+          honesta sobre series completas.
         </p>
         {% if not ready %}
         <p class="warning">El backend arrancó en modo degradado: {{ error }}</p>
@@ -363,7 +385,7 @@
               <strong>Network Traffic</strong>
               <span class="slider-value" data-value-for="network_traffic">95 MB/s</span>
             </div>
-            <input id="network_traffic" type="range" min="0" max="250" step="1" value="95" />
+            <input id="network_traffic" type="range" min="0" max="200" step="1" value="95" />
           </div>
 
           <div class="slider-row">
@@ -371,7 +393,7 @@
               <strong>CPU Temp</strong>
               <span class="slider-value" data-value-for="cpu_temp">73 °C</span>
             </div>
-            <input id="cpu_temp" type="range" min="0" max="120" step="1" value="73" />
+            <input id="cpu_temp" type="range" min="0" max="105" step="1" value="73" />
           </div>
 
           <div class="prob-track">
@@ -383,6 +405,14 @@
           <p class="meta" id="status-meta">
             {% if ready %}Model ready for local inference{% else %}Model not ready{% endif %}
           </p>
+          <div class="trend-row">
+            <button id="trend-btn" type="button" class="ghost" disabled>
+              Apply trend (0/5)
+            </button>
+            <span class="meta" id="trend-hint">
+              Move the sliders 5 times to build a real temporal window.
+            </span>
+          </div>
         </article>
 
         <article class="panel">
@@ -482,10 +512,16 @@
       const chatForm = document.getElementById("chat-form");
       const chatInput = document.getElementById("chat-input");
       const chatSend = document.getElementById("chat-send");
+      const trendBtn = document.getElementById("trend-btn");
+      const trendHint = document.getElementById("trend-hint");
 
       let selectedFile = null;
       let latestSessionId = null;
       let chart = null;
+      // Ring buffer of the last 5 distinct slider states (chronological).
+      // Each entry: {cpu_usage, mem_usage, network_traffic, cpu_temp}.
+      const TREND_WINDOW = 5;
+      const trendBuffer = [];
 
       const updateLabels = () => {
         sliders.forEach((slider) => {
@@ -539,10 +575,78 @@
         }
       };
 
+      const sameReading = (a, b) =>
+        a &&
+        b &&
+        a.cpu_usage === b.cpu_usage &&
+        a.mem_usage === b.mem_usage &&
+        a.network_traffic === b.network_traffic &&
+        a.cpu_temp === b.cpu_temp;
+
+      const refreshTrendUi = () => {
+        trendBtn.textContent = `Apply trend (${trendBuffer.length}/${TREND_WINDOW})`;
+        trendBtn.disabled = trendBuffer.length === 0;
+        if (trendBuffer.length === 0) {
+          trendHint.textContent = "Move the sliders to build a real temporal window.";
+        } else if (trendBuffer.length < TREND_WINDOW) {
+          trendHint.textContent = `${TREND_WINDOW - trendBuffer.length} more reading${
+            TREND_WINDOW - trendBuffer.length === 1 ? "" : "s"
+          } recommended; older readings will be padded.`;
+        } else {
+          trendHint.textContent = "Buffer full: 5 chronological readings ready.";
+        }
+      };
+
+      const pushTrendReading = (payload) => {
+        if (sameReading(trendBuffer[trendBuffer.length - 1], payload)) {
+          return;
+        }
+        trendBuffer.push(payload);
+        if (trendBuffer.length > TREND_WINDOW) {
+          trendBuffer.shift();
+        }
+        refreshTrendUi();
+      };
+
       const schedulePrediction = () => {
         updateLabels();
         clearTimeout(timer);
-        timer = setTimeout(requestPrediction, 150);
+        timer = setTimeout(() => {
+          const payload = snapshotPayload();
+          pushTrendReading(payload);
+          requestPrediction();
+        }, 150);
+      };
+
+      const requestTrendPrediction = async () => {
+        if (trendBuffer.length === 0) {
+          return;
+        }
+        trendBtn.disabled = true;
+        const previousLabel = trendBtn.textContent;
+        trendBtn.textContent = "Scoring trend…";
+        try {
+          const response = await fetch("/predict_window", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ readings: trendBuffer }),
+          });
+          if (!response.ok) {
+            const detail = await response.json();
+            throw new Error(detail.detail || "Trend prediction failed");
+          }
+          const data = await response.json();
+          renderPrediction(data);
+          statusMeta.textContent = `Threshold ${data.threshold.toFixed(
+            2
+          )} · trend window of ${trendBuffer.length}/${TREND_WINDOW} readings`;
+        } catch (error) {
+          renderPredictionError(error.message);
+        } finally {
+          trendBtn.disabled = false;
+          trendBtn.textContent = previousLabel;
+          refreshTrendUi();
+        }
       };
 
       const setFile = (file) => {
@@ -778,9 +882,21 @@
       analyzeBtn.addEventListener("click", analyzeCsv);
       downloadBtn.addEventListener("click", downloadResults);
       chatForm.addEventListener("submit", askRag);
+      // Submit the chat on Enter (Shift+Enter keeps newline) so the textarea
+      // behaves like a modern chat input instead of forcing a button click.
+      chatInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          if (!chatSend.disabled) {
+            chatForm.requestSubmit();
+          }
+        }
+      });
+      trendBtn.addEventListener("click", requestTrendPrediction);
       sliders.forEach((slider) => slider.addEventListener("input", schedulePrediction));
 
       updateLabels();
+      refreshTrendUi();
       requestPrediction();
     </script>
   </body>

@@ -95,6 +95,49 @@ def test_predict_snapshot(ready_runtime: RuntimeResources, ready_rag: RAGResourc
     assert payload["decision"]
 
 
+def test_predict_window_uses_real_temporal_sequence(
+    ready_runtime: RuntimeResources, ready_rag: RAGResources
+) -> None:
+    """The /predict_window endpoint must accept up to 5 chronological readings."""
+    client = TestClient(create_app(runtime_override=ready_runtime, rag_override=ready_rag))
+
+    response = client.post(
+        "/predict_window",
+        json={
+            "readings": [
+                {"cpu_usage": 30, "mem_usage": 40, "network_traffic": 50, "cpu_temp": 60},
+                {"cpu_usage": 50, "mem_usage": 55, "network_traffic": 70, "cpu_temp": 75},
+                {"cpu_usage": 80, "mem_usage": 88, "network_traffic": 110, "cpu_temp": 92},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "trend"
+    assert 0.0 <= payload["probability"] <= 1.0
+    assert payload["prediction"] in {0, 1}
+
+
+def test_predict_window_rejects_empty_payload(
+    ready_runtime: RuntimeResources, ready_rag: RAGResources
+) -> None:
+    client = TestClient(create_app(runtime_override=ready_runtime, rag_override=ready_rag))
+    response = client.post("/predict_window", json={"readings": []})
+    assert response.status_code == 422  # pydantic min_length violation
+
+
+def test_predict_window_rejects_too_many_readings(
+    ready_runtime: RuntimeResources, ready_rag: RAGResources
+) -> None:
+    client = TestClient(create_app(runtime_override=ready_runtime, rag_override=ready_rag))
+    reading = {"cpu_usage": 50, "mem_usage": 50, "network_traffic": 50, "cpu_temp": 50}
+    response = client.post(
+        "/predict_window", json={"readings": [reading] * 6}
+    )
+    assert response.status_code == 422  # pydantic max_length violation
+
+
 def test_predict_returns_503_when_runtime_not_ready(ready_rag: RAGResources) -> None:
     degraded_runtime = RuntimeResources(
         model=None,

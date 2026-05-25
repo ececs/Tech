@@ -22,6 +22,7 @@ from src.inference_service import (
     infer_uploaded_dataframe,
     load_runtime_resources,
     predict_snapshot,
+    predict_trend,
 )
 from src.rag_service import RAGResources, ask_question, load_rag_resources
 
@@ -54,6 +55,23 @@ class PredictResponse(BaseModel):
     prediction: int
     threshold: float
     decision: str
+    mode: str = "snapshot"
+    warnings: list[str] = Field(default_factory=list)
+
+
+class TrendReading(BaseModel):
+    """One telemetry sample inside a real temporal window."""
+
+    cpu_usage: float = Field(..., ge=0.0, le=100.0)
+    mem_usage: float = Field(..., ge=0.0, le=100.0)
+    network_traffic: float = Field(..., ge=0.0)
+    cpu_temp: float = Field(..., ge=0.0, le=150.0)
+
+
+class PredictWindowRequest(BaseModel):
+    """Up to five chronological readings forming a real (non-replicated) window."""
+
+    readings: list[TrendReading] = Field(..., min_length=1, max_length=5)
 
 
 class HealthResponse(BaseModel):
@@ -165,7 +183,12 @@ def purge_old_sessions(sessions_dir: Path, keep: int = SESSION_LIMIT) -> None:
         stale_path.unlink(missing_ok=True)
 
 
-def build_predict_response(probability: float, threshold: float) -> PredictResponse:
+def build_predict_response(
+    probability: float,
+    threshold: float,
+    mode: str = "snapshot",
+    warnings: list[str] | None = None,
+) -> PredictResponse:
     """Translate a probability score into the public API response shape."""
     prediction = int(probability > threshold)
     decision = (
@@ -178,6 +201,8 @@ def build_predict_response(probability: float, threshold: float) -> PredictRespo
         prediction=prediction,
         threshold=threshold,
         decision=decision,
+        mode=mode,
+        warnings=warnings or [],
     )
 
 
@@ -269,7 +294,26 @@ def create_app(
             )
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-        return build_predict_response(probability, runtime.threshold)
+        return build_predict_response(probability, runtime.threshold, mode="snapshot")
+
+    @app.post("/predict_window", response_model=PredictResponse)
+    def predict_window_route(
+        payload: PredictWindowRequest, request: Request
+    ) -> PredictResponse:
+        runtime: RuntimeResources = request.app.state.runtime
+        readings = [
+            (r.cpu_usage, r.mem_usage, r.network_traffic, r.cpu_temp)
+            for r in payload.readings
+        ]
+        try:
+            probability, warnings = predict_trend(readings, runtime=runtime)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return build_predict_response(
+            probability, runtime.threshold, mode="trend", warnings=warnings
+        )
 
     @app.post("/upload_csv", response_model=UploadResponse)
     async def upload_csv(

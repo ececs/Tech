@@ -161,6 +161,57 @@ def predict_snapshot(
     return float(predict_window_matrix(scaled.reshape(1, -1), runtime)[0])
 
 
+def predict_trend(
+    readings: list[tuple[float, float, float, float]],
+    runtime: RuntimeResources,
+    window_size: int = WINDOW_SIZE,
+) -> tuple[float, list[str]]:
+    """Score a real temporal sequence built from up to ``window_size`` readings.
+
+    Unlike :func:`predict_snapshot`, this preserves the temporal variation
+    the model was trained on. When fewer than ``window_size`` readings
+    are provided, the oldest reading is repeated on the left (causal
+    padding), matching the batch inference behaviour.
+
+    Args:
+        readings: Chronological list of ``(cpu_usage, mem_usage,
+            network_traffic, cpu_temp)`` tuples. Must be non-empty and
+            contain at most ``window_size`` entries.
+        runtime: Loaded model and scaler.
+        window_size: Expected sequence length (default ``5``).
+
+    Returns:
+        Tuple ``(probability, warnings)``. ``warnings`` may include a
+        scaler-out-of-range notice.
+
+    Raises:
+        ValueError: If ``readings`` is empty or longer than
+            ``window_size``.
+    """
+    ensure_runtime_ready(runtime)
+    assert runtime.scaler is not None
+
+    if not readings:
+        raise ValueError("readings must contain at least one entry")
+    if len(readings) > window_size:
+        raise ValueError(
+            f"readings has {len(readings)} entries, expected at most {window_size}"
+        )
+
+    matrix = np.array(readings, dtype=np.float64)
+    if matrix.shape[1] != len(FEATURE_COLS):
+        raise ValueError(
+            f"each reading must have {len(FEATURE_COLS)} values, got {matrix.shape[1]}"
+        )
+    if matrix.shape[0] < window_size:
+        pad = np.repeat(matrix[:1], window_size - matrix.shape[0], axis=0)
+        matrix = np.vstack([pad, matrix])
+
+    scaled, warnings = scale_and_clip_features(matrix, runtime.scaler)
+    probability = float(predict_window_matrix(scaled.reshape(1, -1), runtime)[0])
+    return probability, warnings
+
+
 def validate_upload_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Validate and normalize the uploaded CSV dataframe."""
     missing = [column for column in REQUIRED_UPLOAD_COLUMNS if column not in df.columns]
