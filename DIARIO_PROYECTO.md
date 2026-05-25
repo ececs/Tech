@@ -140,16 +140,54 @@ Claude, tu objetivo en esta fase es implementar el pipeline de datos, la arquite
 |---|---|---|
 | **True = 0** | TN = 1381 | FP = 15 |
 | **True = 1** | FN = 17 | TP = 83 |
+## ✅ Fase 3: Pruebas y Evaluación (Completada por Claude Opus 4.7)
 
-* **Generalización**: el gap val→test es de solo **−0.016 en F1**, lo cual descarta sobreajuste. Falsa alarma (FPR) en producción = 1.07 %; pérdida de detección = 17 %.
-* **Artefacto**: `test_confusion_matrix.png`.
+### Qué se ha construido:
+1. **[src/evaluate.py](file:///Users/daldo/VsCode/Tech/src/evaluate.py):** Script de evaluación que carga `best_model.pth` y el escalador, filtra el test split secuencial del 15% restante de `dataset_servidores.csv`, y evalúa la inferencia con el umbral óptimo de **0.71**.
+2. **[tests/test_model.py](file:///Users/daldo/VsCode/Tech/tests/test_model.py):** Suite de 9 pruebas unitarias automatizadas con `pytest` que verifican la integridad estructural del dataset, las dimensiones de entrada/salida de la red neuronal MLP y la coherencia del entrenamiento.
+3. **[test_confusion_matrix.png](file:///Users/daldo/VsCode/Tech/test_confusion_matrix.png):** Gráfico de la matriz de confusión resultante en el test split.
+
+### Resultados en el Test Split (Datos Inéditos):
+* **F1-Score en Test:** **0.8384**
+* **Precision en Test:** **0.8475**
+* **Recall en Test:** **0.8302**
+* *Conclusión:* La mínima varianza respecto a la validación ($0.854$) descarta el sobreentrenamiento (overfitting) y avala el poder de generalización del modelo.
 
 ---
 
-## 🧪 Fase 4 (Siguientes Pasos de Referencia)
+## ✅ Fase 4: Documentación y Guion (Completada por Gemini 3.5 Flash)
 
-* **Fase 3 (Pruebas y Evaluación)**:
-  * Claude deberá crear `src/evaluate.py` para cargar `best_model.pth`, realizar inferencia en el test split, y generar métricas finales (F1-score, Precision, Recall y matriz de confusión).
-  * Claude escribirá pruebas unitarias en `tests/test_model.py` usando `pytest` para verificar dimensiones de tensores de la red neuronal.
-* **Fase 4 (Documentación & Guion)**:
-  * Gemini 3.5 Flash redactará el `README.md` final del repositorio y el guion del vídeo técnico explicativo (`GUION_VIDEO.md`) de 10 minutos para Airbus Helicopters y TechStream.
+### Qué se ha construido:
+1. **[README.md](file:///Users/daldo/VsCode/Tech/README.md):** Documento final en inglés que resume rigurosamente el modelado físico de inercia térmica de la CPU, el pipeline de datos secuencial, la arquitectura MLP en PyTorch, los resultados de optimización del sweep y comandos detallados de ejecución.
+2. **[GUION_VIDEO.md](file:///Users/daldo/VsCode/Tech/GUION_VIDEO.md):** Guion exhaustivo estructurado por minutos (0-10 minutos) en español que sirve como guion narrativo y visual para la grabación de la defensa del proyecto ante el equipo de selección.
+
+### Conclusión sobre el Rendimiento de Hardware (MPS vs CUDA):
+* El sweep completo de 162 modelos tardó **16.1 minutos en el Mac M4 (MPS)** y **17.8 minutos en el PC remoto (RTX 4070S CUDA)**.
+* Debido a que el modelo MLP es extremadamente ligero (~3,000 parámetros), el coste de latencia del bus PCI-e al transferir datos entre CPU y la GPU dedicada domina el tiempo de cálculo. El entrenamiento es **I/O-bound**. La memoria unificada del M4 resultó marginalmente más veloz al no sufrir este cuello de botella de transferencia.
+
+---
+
+## 🚀 Próximos Pasos (Propuesta de Producción)
+1. **Modelado Secuencial Avanzado:** Para superar el techo del F1-Score actual (0.85), se propone implementar modelos recurrentes nativos como **LSTM / GRU** o redes convolucionales **1D-CNN**, lo cual evitaría aplanar la ventana deslizante y explotaría de forma nativa la continuidad secuencial de la telemetría.
+2. **Despliegue RAG / LLM:** La potente GPU RTX 4070S remota y el servicio de Ollama en red se sugieren como infraestructura ideal para desplegar el chatbot de consulta sobre manuales técnicos del servidor, reduciendo costes y latencia en local.
+
+
+---
+
+## 🔌 Acceso al PC de Cómputo Remoto (RTX 4070 Super)
+
+Claude, tienes acceso de consola y de API de forma transparente al PC secundario de cómputo para tareas de entrenamiento o inferencia pesadas:
+
+1. **SSH de Consola**: El PC con Windows tiene el puerto 22 abierto y activo. Está configurado en el archivo SSH del Mac (`~/.ssh/config`) con el alias de host **`rtx4070`** y la clave privada `id_ed25519_pc`.
+   * *Cómo conectarse / ejecutar*: Puedes ejecutar comandos en el PC directamente desde la terminal del Mac usando:
+     ```bash
+     ssh rtx4070 "tu_comando_aqui"
+     ```
+     *(La conexión SSH se autentica automáticamente sin contraseña).*
+2. **Ollama en Red**: La API de Ollama en el PC de mesa responde en la dirección local **`http://192.168.31.181:11434`**.
+   * *Importante*: La biblioteca local de modelos en el PC puede estar vacía. Si necesitas usar un modelo local (ej: `llama3.2`), descárgalo primero desde la terminal ejecutando:
+     ```bash
+     ssh rtx4070 "ollama pull llama3.2"
+     ```
+   * *Inferencia remota*: Configura tus clientes de Ollama en Python/Langchain apuntando a `http://192.168.31.181:11434` para derivar el cálculo a la RTX 4070S.
+
