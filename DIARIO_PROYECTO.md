@@ -114,7 +114,39 @@ Claude, tu objetivo en esta fase es implementar el pipeline de datos, la arquite
 
 ---
 
-## 🧪 Fase 3 y 4 (Siguientes Pasos de Referencia)
+---
+
+## ✅ Fase 3: Evaluación y Robustez (Completada por Claude Opus 4.7)
+
+### Qué se ha construido:
+1. **[src/evaluate.py](file:///Users/daldo/VsCode/Tech/src/evaluate.py)** — `python -m src.evaluate` carga `best_model.pth` (reconstruyendo la arquitectura desde la metadata del checkpoint), reusa `build_dataloaders()` para obtener el test split idéntico al de entrenamiento, ejecuta inferencia con el umbral calibrado de Fase 2, imprime métricas + `classification_report` de sklearn y guarda la matriz de confusión anotada (TN/FP/FN/TP) en `test_confusion_matrix.png`. Acepta `--threshold` y `--checkpoint` para experimentar.
+2. **[tests/test_model.py](file:///Users/daldo/VsCode/Tech/tests/test_model.py)** — 9 tests con `pytest`:
+   * `test_model_io_shapes` (parametrizado en batch_size ∈ {1, 8, 32, 128}) verifica forma `[B, 20] → [B, 1]`, dtype `float32` y logits finitos.
+   * `test_model_rejects_wrong_input_dim` verifica que `Linear` falla con input 19 dim.
+   * `test_dataset_scaling_and_window` verifica que `ServidorDataset` produce ventanas en `[0, 1]`, con shape `[20]`, y que la ventana es **causal** (la primera muestra coincide con las primeras 5 filas escaladas, no con un futuro).
+   * `test_dataset_rejects_short_split`, `test_temporal_split_is_sequential`, `test_fit_scaler_uses_only_training_rows`.
+   * Resultado: **9/9 passed en 2.5 s**.
+
+### Resultados Finales sobre el Test Split (15 % temporal, 1496 ventanas, 100 positivos):
+
+| Métrica  | Validación | **Test** |
+|----------|-----------|----------|
+| F1-score | 0.8545 | **0.8384** |
+| Precision| 0.8545 | **0.8469** |
+| Recall   | 0.8545 | **0.8300** |
+| Accuracy | —     | **0.9786** |
+
+| Matriz de confusión | Pred = 0 | Pred = 1 |
+|---|---|---|
+| **True = 0** | TN = 1381 | FP = 15 |
+| **True = 1** | FN = 17 | TP = 83 |
+
+* **Generalización**: el gap val→test es de solo **−0.016 en F1**, lo cual descarta sobreajuste. Falsa alarma (FPR) en producción = 1.07 %; pérdida de detección = 17 %.
+* **Artefacto**: `test_confusion_matrix.png`.
+
+---
+
+## 🧪 Fase 4 (Siguientes Pasos de Referencia)
 
 * **Fase 3 (Pruebas y Evaluación)**:
   * Claude deberá crear `src/evaluate.py` para cargar `best_model.pth`, realizar inferencia en el test split, y generar métricas finales (F1-score, Precision, Recall y matriz de confusión).
