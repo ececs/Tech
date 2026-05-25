@@ -37,6 +37,86 @@ DEFAULT_EMBEDDING_MODEL: str = os.getenv(
 )
 DEFAULT_TOP_K = 6
 
+# Deterministic intent router. Trivial conversational primitives are
+# answered before invoking the LLM: it removes a ~12 s remote call and
+# eliminates any chance of the model going off-script on a greeting.
+# The full RAG pipeline (with the strict grounding prompt) handles
+# everything else unchanged.
+GREETING_PATTERNS: frozenset[str] = frozenset({
+    "hola",
+    "buenas",
+    "buenos dias",
+    "buenos días",
+    "buenas tardes",
+    "buenas noches",
+    "hey",
+    "hi",
+    "hello",
+    "saludos",
+    "que tal",
+    "qué tal",
+    "que hay",
+    "qué hay",
+})
+THANKS_PATTERNS: frozenset[str] = frozenset({
+    "gracias",
+    "muchas gracias",
+    "mil gracias",
+    "thanks",
+    "thank you",
+    "thx",
+})
+HELP_PATTERNS: frozenset[str] = frozenset({
+    "ayuda",
+    "help",
+    "que puedes hacer",
+    "qué puedes hacer",
+    "que sabes",
+    "qué sabes",
+    "como funcionas",
+    "cómo funcionas",
+})
+
+GREETING_RESPONSE = (
+    "¡Hola! Soy el asistente técnico de este proyecto. "
+    "Pregúntame sobre la arquitectura, métricas, hiperparámetros "
+    "o cualquier detalle de la documentación."
+)
+THANKS_RESPONSE = "De nada. ¿Algo más sobre el proyecto?"
+HELP_RESPONSE = (
+    "Puedo responder preguntas sobre el modelo MLP/GRU, el pipeline de "
+    "datos, los resultados en test, el sweep de hiperparámetros y la "
+    "arquitectura del sistema. Cito siempre el archivo fuente."
+)
+
+
+def maybe_route_intent(question: str) -> str | None:
+    """Return a fixed reply for conversational primitives, or ``None``.
+
+    Detection is exact-match on a normalized form of the question
+    (lowercased and trimmed of leading/trailing punctuation/whitespace).
+    Anything that doesn't match a known intent falls through to the
+    full RAG pipeline.
+
+    Args:
+        question: The user's raw input string.
+
+    Returns:
+        A canned response string if the input matches a known intent,
+        otherwise ``None``.
+    """
+    normalized = question.strip().lower().strip("?¿!¡.,;: \t\n")
+    if not normalized:
+        return None
+    if normalized in GREETING_PATTERNS:
+        return GREETING_RESPONSE
+    if normalized in THANKS_PATTERNS:
+        return THANKS_RESPONSE
+    if normalized in HELP_PATTERNS:
+        return HELP_RESPONSE
+    return None
+
+
 PROMPT_TEMPLATE = """Eres un asistente técnico que responde preguntas sobre un proyecto de Deep Learning para detección de anomalías en servidores. Usa EXCLUSIVAMENTE la información de los pasajes a continuación para responder. Si la respuesta no está en los pasajes, di "No tengo esa información en la documentación". Responde en español, de forma concisa (máximo 6 líneas) y cita el archivo fuente entre paréntesis al final de cada afirmación, por ejemplo "(README.md)".
 
 Pasajes recuperados:
@@ -276,7 +356,18 @@ def ask_question(
     question: str,
     resources: RAGResources,
 ) -> tuple[str, list[RetrievedChunk]]:
-    """Run a RAG question against preloaded resources."""
+    """Run a RAG question against preloaded resources.
+
+    Conversational primitives (greetings, thanks, capability queries)
+    are short-circuited by :func:`maybe_route_intent` before any
+    retrieval or LLM call, so the system replies instantly and cannot
+    hallucinate on them. Everything else falls through to the strict
+    RAG flow.
+    """
+    routed = maybe_route_intent(question)
+    if routed is not None:
+        return routed, []
+
     if not resources.ready or resources.vectorstore is None or resources.llm is None:
         raise RuntimeError(
             "El servicio RAG no está listo. "

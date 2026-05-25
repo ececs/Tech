@@ -18,6 +18,7 @@ from src.rag_service import (
     DEFAULT_OLLAMA_URL,
     ask_question,
     load_rag_resources,
+    maybe_route_intent,
 )
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
@@ -149,6 +150,15 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+
+    # Short-circuit conversational primitives before loading FAISS or
+    # contacting the remote LLM. Reduces a "hola" from ~10 s (model +
+    # index startup) to a few hundred milliseconds.
+    if not args.interactive and args.question is not None:
+        routed = maybe_route_intent(args.question)
+        if routed is not None:
+            print_answer(args.question, routed, [])
+            return 0
 
     resources = load_rag_resources(
         doc_paths=DEFAULT_DOC_PATHS,

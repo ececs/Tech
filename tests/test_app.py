@@ -200,3 +200,50 @@ def test_ask_endpoint(ready_runtime: RuntimeResources, ready_rag: RAGResources, 
     payload = response.json()
     assert "0.71" in payload["answer"]
     assert payload["citations"][0]["source"] == "README.md"
+
+
+def test_intent_router_returns_canned_responses() -> None:
+    """The intent router resolves greetings/thanks/help without invoking the LLM."""
+    from src.rag_service import (
+        GREETING_RESPONSE,
+        HELP_RESPONSE,
+        THANKS_RESPONSE,
+        maybe_route_intent,
+    )
+
+    greeting_inputs = ["hola", "Hola!", "¡Hola!", "  HOLA  ", "buenas", "Buenos días"]
+    for prompt in greeting_inputs:
+        assert maybe_route_intent(prompt) == GREETING_RESPONSE, prompt
+
+    for prompt in ["gracias", "Muchas gracias", "thanks!"]:
+        assert maybe_route_intent(prompt) == THANKS_RESPONSE, prompt
+
+    for prompt in ["ayuda", "¿qué puedes hacer?", "Cómo funcionas"]:
+        assert maybe_route_intent(prompt) == HELP_RESPONSE, prompt
+
+    # Non-trivial questions must fall through to the full RAG flow.
+    for prompt in [
+        "¿Qué F1 alcanza el modelo?",
+        "hola, dime el F1",
+        "hola dime el F1",
+        "",
+    ]:
+        assert maybe_route_intent(prompt) is None, prompt
+
+
+def test_ask_short_circuits_on_greeting(
+    ready_runtime: RuntimeResources, ready_rag: RAGResources
+) -> None:
+    """A bare greeting must return the canned reply with empty citations and never hit the LLM."""
+    from src.rag_service import GREETING_RESPONSE
+
+    client = TestClient(
+        create_app(runtime_override=ready_runtime, rag_override=ready_rag)
+    )
+
+    response = client.post("/ask", json={"question": "hola"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"] == GREETING_RESPONSE
+    assert payload["citations"] == []
