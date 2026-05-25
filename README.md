@@ -101,8 +101,8 @@ The sweep optimized the model by scanning the precision-recall curve on the vali
 
 * **Test Generalization:** When evaluated on the unseen Test Split (the final 1,500 minutes of the server's timeline) using the optimal threshold of **0.71**, the model achieved:
   * **Test F1-Score:** **0.8384**
-  * **Test Precision:** **0.8475**
-  * **Test Recall:** **0.8302**
+  * **Test Precision:** **0.8469**
+  * **Test Recall:** **0.8300**
   
   The marginal difference between validation ($0.854$) and test ($0.838$) metrics confirms that the model generalizes robustly and does not suffer from overfitting.
 * **Confusion Matrix:** The resulting confusion matrix (`test_confusion_matrix.png`) shows an outstanding balance, capturing almost all thermal failures while keeping false alarms to a minimum.
@@ -220,14 +220,24 @@ make docker-run
 
 ## 🧪 6. GRU Variant & Experimental Comparison (`src/train_gru.py`)
 
-As an extension to the baseline MLP, we implemented a recurrent **GRU-based classifier** (`AnomalyDetectorGRU`) to evaluate if modeling the temporal sequence explicitly yields better results.
+As an extension to the baseline MLP, I trained a recurrent **GRU-based classifier** (`AnomalyDetectorGRU`) to test whether explicitly modeling the 5-step temporal sequence improved anomaly detection.
 
-### Architectural Comparison
-* **MLP Baseline (3,649 parameters):** Flat feed-forward network processing a flattened 20-dimensional sliding window ($5 \text{ steps} \times 4 \text{ features}$).
-* **GRU Variant (3,681 parameters):** Recurrent network that reshapes the input back to `[batch, seq_len, num_features]` and processes it sequentially.
+### Architectural and Metric Comparison
 
-### Experimental Findings & Conclusions:
-* **Short Sequence Limit:** With a very short sequence length ($5$ minutes), the recurrent bias of the GRU does not provide a clear modeling advantage.
-* **Recall vs. Precision Trade-off:** The GRU slightly improves recall but increases false positives, leading to a worse overall F1-Score balance.
-* **Final Verdict:** The baseline MLP remains the most robust and stable model for this specific sequence length, and is the primary deliverable for production.
-* **Code Separation:** Both training pathways are kept separate (`src/train.py` for MLP and `src/train_gru.py` for GRU) while sharing core training utilities in `src/training_common.py`.
+The comparison below reflects the metrics of the checkpoints currently shipped with the repository:
+
+| Metric / Feature | MLP Baseline | GRU Variant |
+| :--- | :---: | :---: |
+| **Parameters** | 3,649 | 13,505 |
+| **Structure** | Flat sliding window (20 dimensions) | Sequential recurrent `[batch, 5, 4]` |
+| **Decision Threshold** | 0.710 | 0.613 |
+| **Best Validation F1** | **0.8545** | **0.8393** |
+| **Test F1-Score** | **0.8384** | **0.8155** |
+| **Test Precision** | **0.8469** | **0.7925** |
+| **Test Recall** | **0.8300** | **0.8400** |
+
+### Experimental Findings & Conclusions
+* **Short Sequence Limit:** With only 5 minutes of context, the recurrent inductive bias of the GRU does not translate into a measurable advantage over the simpler flattened window approach.
+* **Precision vs. Recall Trade-off:** The GRU slightly increases recall (`0.8400` vs `0.8300`), but loses enough precision (`0.7925` vs `0.8469`) to produce a lower overall F1-score on test.
+* **Final Verdict:** The MLP remains the strongest default model for this challenge because it is smaller, simpler, and more stable on the held-out split.
+* **Code Separation:** Both training pathways remain available (`src/train.py` for MLP and `src/train_gru.py` for GRU) while sharing the common training utilities in `src/training_common.py`.

@@ -55,6 +55,62 @@
         padding: 28px;
         display: grid;
         gap: 12px;
+        order: 1;
+      }
+
+      .hero-top {
+        display: grid;
+        gap: 10px;
+      }
+
+      .hero-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 14px;
+        margin-top: 10px;
+      }
+
+      .hero-stat {
+        border-radius: 18px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .hero-stat span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .hero-stat strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 1.45rem;
+      }
+
+      .hero-stat small {
+        display: block;
+        margin-top: 6px;
+        color: var(--muted);
+      }
+
+      .hero-callout {
+        display: grid;
+        gap: 6px;
+        margin-top: 6px;
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: linear-gradient(
+          135deg,
+          rgba(89, 195, 195, 0.12),
+          rgba(244, 162, 97, 0.12)
+        );
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .hero-callout strong {
+        font-size: 0.95rem;
       }
 
       .eyebrow {
@@ -102,6 +158,26 @@
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 20px;
         align-items: start;
+      }
+
+      .report-panel {
+        order: 2;
+      }
+
+      .main-demo {
+        order: 3;
+      }
+
+      .temporal-panel {
+        order: 4;
+      }
+
+      .simulation-panel {
+        order: 5;
+      }
+
+      .chat-panel {
+        order: 6;
       }
 
       .panel {
@@ -503,11 +579,11 @@
       }
 
       .report-image-container.wide {
-        max-width: 950px;
+        max-width: 1100px;
       }
 
       .report-image-container.square {
-        max-width: 600px;
+        max-width: 680px;
       }
 
       .report-image-container img {
@@ -568,300 +644,91 @@
   <body>
     <main class="shell">
       <section class="hero">
-        <div class="eyebrow">
-          <span>FastAPI demo</span>
-          <span>device={{ device }}</span>
-          <span>model={{ model }}</span>
-          <span>threshold={{ "%.2f"|format(threshold) }}</span>
+        <div class="hero-top">
+          <div class="eyebrow">
+            <span>Demo FastAPI</span>
+            <span>dispositivo={{ device }}</span>
+            <span>modelo={{ model }}</span>
+            <span>umbral={{ "%.2f"|format(threshold) }}</span>
+          </div>
+          <h1>TechStream Monitor</h1>
+          <p>
+            Entorno de evaluación para una solución end-to-end de detección de anomalías en telemetría de servidores: entrenamiento en PyTorch, inferencia en FastAPI y consulta documental con RAG.
+          </p>
         </div>
-        <h1>TechStream Monitor</h1>
-        <p>
-          Demo local del reto con dos modos: snapshot inference mediante sliders y
-          batch analysis sobre CSV temporal para explorar anomalías y picos térmicos.
-        </p>
         <p class="note">
-          El modo <strong>snapshot</strong> repite la misma lectura 5 veces para
-          llenar la ventana del modelo y por eso es conservador: el modelo se
-          entrenó sobre secuencias con dinámica temporal real, así que pide
-          valores cercanos al máximo (CPU&nbsp;≥&nbsp;95, mem&nbsp;≥&nbsp;95,
-          temp&nbsp;≥&nbsp;100) antes de declarar anomalía. Usa
-          <strong>Apply trend</strong> para puntuar los últimos 5 estados de
-          los sliders como ventana real, o el modo CSV para una evaluación
-          honesta sobre series completas.
+          El modo <strong>instantánea</strong> replica la lectura actual 5 veces para completar la ventana temporal del modelo. Por ello su comportamiento es conservador: el entrenamiento se realizó sobre secuencias reales con inercia térmica. Para una evaluación más representativa conviene usar <strong>Aplicar tendencia</strong>, la simulación temporal o el análisis por CSV.
         </p>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <span>Dataset</span>
+            <strong>10,000 filas</strong>
+            <small>508 anomalías simuladas con coherencia física</small>
+          </div>
+          <div class="hero-stat">
+            <span>Modelo principal</span>
+            <strong>MLP · F1 0.8384</strong>
+            <small>Umbral calibrado en 0.71 sobre validación</small>
+          </div>
+          <div class="hero-stat">
+            <span>Comparativa</span>
+            <strong>GRU F1 0.8155</strong>
+            <small>Mayor recall, menor precisión y 13,505 parámetros</small>
+          </div>
+          <div class="hero-stat">
+            <span>Módulos de la demo</span>
+            <strong>Instantánea · CSV · Simulación · RAG</strong>
+            <small>Organizados para revisión técnica y validación operativa</small>
+          </div>
+        </div>
+        <div class="hero-callout">
+          <strong>Recorrido recomendado</strong>
+          <span class="muted">Revisar primero el reporte y la simulación temporal; usar después el análisis por CSV y dejar la instantánea como vista rápida de sensibilidad.</span>
+        </div>
         {% if not ready %}
         <p class="warning">El backend arrancó en modo degradado: {{ error }}</p>
         {% endif %}
       </section>
 
-      <section class="layout">
-        <article class="panel">
-          <h2>Live Snapshot</h2>
-          <p class="muted">
-            Ajusta los sliders para obtener una estimación rápida sobre el checkpoint entrenado.
-          </p>
-
-          <div class="slider-row">
-            <div class="slider-label">
-              <strong>CPU Usage</strong>
-              <span class="slider-value" data-value-for="cpu_usage">52%</span>
-            </div>
-            <input id="cpu_usage" type="range" min="0" max="100" step="1" value="52" />
-          </div>
-
-          <div class="slider-row">
-            <div class="slider-label">
-              <strong>Memory Usage</strong>
-              <span class="slider-value" data-value-for="mem_usage">64%</span>
-            </div>
-            <input id="mem_usage" type="range" min="0" max="100" step="1" value="64" />
-          </div>
-
-          <div class="slider-row">
-            <div class="slider-label">
-              <strong>Network Traffic</strong>
-              <span class="slider-value" data-value-for="network_traffic">95 MB/s</span>
-            </div>
-            <input id="network_traffic" type="range" min="0" max="200" step="1" value="95" />
-          </div>
-
-          <div class="slider-row">
-            <div class="slider-label">
-              <strong>CPU Temp</strong>
-              <span class="slider-value" data-value-for="cpu_temp">73 °C</span>
-            </div>
-            <input id="cpu_temp" type="range" min="0" max="105" step="1" value="73" />
-          </div>
-
-          <div class="prob-track">
-            <div class="prob-fill" id="prob-fill"></div>
-          </div>
-          <strong id="prob-label">0.00%</strong>
-          <p id="decision" class="decision">Waiting for input…</p>
-          <p class="meta" id="prediction-meta">Prediction class: --</p>
-          <p class="meta" id="status-meta">
-            {% if ready %}Model ready for local inference{% else %}Model not ready{% endif %}
-          </p>
-          <div class="trend-row">
-            <button id="trend-btn" type="button" class="ghost" disabled>
-              Apply trend (0/5)
-            </button>
-            <span class="meta" id="trend-hint">
-              Move the sliders 5 times to build a real temporal window.
-            </span>
-          </div>
-        </article>
-
-        <article class="panel">
-          <h2>Batch CSV Analysis</h2>
-          <p class="muted">
-            Sube un CSV con `timestamp`, `cpu_usage`, `mem_usage`, `network_traffic` y `cpu_temp`.
-            Si no tienes uno a mano, prueba uno de los presets curados del test split.
-          </p>
-
-          <div class="preset-row">
-            <button id="preset-ramp_up" type="button" class="ghost" data-scenario="ramp_up">
-              Ramp-up to crisis
-            </button>
-            <button id="preset-hot_cluster" type="button" class="ghost" data-scenario="hot_cluster">
-              Hot cluster
-            </button>
-            <button id="preset-calm_baseline" type="button" class="ghost" data-scenario="calm_baseline">
-              Calm baseline
-            </button>
-          </div>
-
-          <label class="dropzone" id="dropzone">
-            <input id="file-input" type="file" accept=".csv" class="hidden" />
-            <strong>Drop file here or click</strong>
-            <p class="muted">Procesa la serie, calcula probabilidades y prepara descarga.</p>
-          </label>
-
-          <div id="warning-list" class="warning-list hidden"></div>
-
-          <div id="summary-panel" class="summary-grid hidden">
-            <div class="summary-card">
-              <span class="muted">Rows</span>
-              <strong id="summary-rows">0</strong>
-            </div>
-            <div class="summary-card">
-              <span class="muted">Anomalies</span>
-              <strong id="summary-anomalies">0</strong>
-            </div>
-            <div class="summary-card">
-              <span class="muted">Anomaly Rate</span>
-              <strong id="summary-rate">0%</strong>
-            </div>
-            <div class="summary-card">
-              <span class="muted">Top Thermal Peak</span>
-              <strong id="summary-peak">--</strong>
-            </div>
-          </div>
-
-          <div class="actions">
-            <button id="analyze-btn" type="button">Analyze CSV</button>
-            <button id="download-btn" class="secondary" type="button" disabled>
-              Download analyzed CSV
-            </button>
-          </div>
-        </article>
-      </section>
-
-      <section id="temporal-view-section" class="panel hidden">
-        <h2>Temporal View</h2>
-        <p class="muted" id="temporal-view-meta">
-          Renders either the trend window (after pressing Apply trend) or the full
-          CSV batch result. Anomalies are highlighted in red.
-        </p>
-        <div class="chart-wrap">
-          <canvas id="timeline-chart"></canvas>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Live Simulation</h2>
-        <p class="muted">
-          Replays a slice of the test split tick by tick, calling the trained
-          model on a real 5-step window each second. Shows predicted vs actual
-          and a confusion matrix that updates live.
-        </p>
-
-        <div class="sim-controls">
-          <label>
-            <span class="muted">Scenario</span>
-            <select id="sim-scenario"></select>
-          </label>
-          <label>
-            <span class="muted">Speed</span>
-            <select id="sim-speed">
-              <option value="1000">1× (1 s/tick)</option>
-              <option value="500">2×</option>
-              <option value="200" selected>5×</option>
-              <option value="100">10×</option>
-              <option value="50">20×</option>
-            </select>
-          </label>
-          <button id="sim-play" type="button">▶ Play</button>
-          <button id="sim-pause" type="button" class="secondary" disabled>Pause</button>
-          <button id="sim-reset" type="button" class="secondary" disabled>Reset</button>
-        </div>
-        <p class="meta" id="sim-status">Pick a scenario and press Play to start.</p>
-
-        <div class="sim-grid">
-          <div class="sim-card">
-            <span class="muted">Tick</span>
-            <strong id="sim-tick">0 / 0</strong>
-          </div>
-          <div class="sim-card">
-            <span class="muted">Last reading</span>
-            <strong id="sim-current">--</strong>
-          </div>
-          <div class="sim-card">
-            <span class="muted">Predicted</span>
-            <strong id="sim-pred">--</strong>
-          </div>
-          <div class="sim-card">
-            <span class="muted">Actual</span>
-            <strong id="sim-actual">--</strong>
-          </div>
-        </div>
-
-        <div class="sim-grid">
-          <div class="sim-card metric-card">
-            <span class="muted">TP</span>
-            <strong id="sim-tp">0</strong>
-          </div>
-          <div class="sim-card metric-card">
-            <span class="muted">FP</span>
-            <strong id="sim-fp">0</strong>
-          </div>
-          <div class="sim-card metric-card">
-            <span class="muted">FN</span>
-            <strong id="sim-fn">0</strong>
-          </div>
-          <div class="sim-card metric-card">
-            <span class="muted">TN</span>
-            <strong id="sim-tn">0</strong>
-          </div>
-          <div class="sim-card metric-card">
-            <span class="muted">F1</span>
-            <strong id="sim-f1">--</strong>
-          </div>
-          <div class="sim-card metric-card">
-            <span class="muted">Precision</span>
-            <strong id="sim-prec">--</strong>
-          </div>
-          <div class="sim-card metric-card">
-            <span class="muted">Recall</span>
-            <strong id="sim-rec">--</strong>
-          </div>
-        </div>
-
-        <div class="chart-wrap">
-          <canvas id="sim-chart"></canvas>
-        </div>
-      </section>
-
-      <section class="panel chat-shell">
-        <h2>Documentation Chat</h2>
-        <p class="muted">
-          Consulta el RAG local sobre README, diario de proyecto y guion. Las respuestas incluyen citas recuperadas.
-        </p>
-        {% if not rag_ready %}
-        <p class="warning">El chat RAG arrancó en modo degradado: {{ rag_error }}</p>
-        {% endif %}
-        <div id="chat-log" class="chat-log">
-          <div class="bubble assistant">
-            Puedo responder preguntas sobre el proyecto, por ejemplo: "¿Por qué el GRU pierde frente al MLP?" o "¿Qué threshold final se usa?".
-          </div>
-        </div>
-        <form id="chat-form" class="chat-form">
-          <textarea id="chat-input" placeholder="Escribe una pregunta sobre la documentación del proyecto..."></textarea>
-          <button id="chat-send" type="submit">Ask</button>
-        </form>
-      </section>
-
-      <section class="panel">
+      <section class="panel report-panel">
         <h2>Reporte de Experimentos y Métricas</h2>
         <p class="muted">
-          Organización y análisis técnico detallado de la simulación de telemetría, el proceso de entrenamiento del modelo MLP y la comparación con la variante recurrente GRU.
+          Resumen técnico del generador de datos, el pipeline de entrenamiento, la calibración del modelo y la comparación final entre MLP y GRU.
         </p>
 
         <div class="report-tabs">
-          <button type="button" class="report-tab-btn active" onclick="switchReportTab('tab-sim-eda')">1. Simulación & EDA</button>
-          <button type="button" class="report-tab-btn" onclick="switchReportTab('tab-train-sweep')">2. Entrenamiento & Sweep</button>
-          <button type="button" class="report-tab-btn" onclick="switchReportTab('tab-eval-compare')">3. Evaluación (MLP vs GRU)</button>
+          <button type="button" class="report-tab-btn active" onclick="switchReportTab('tab-sim-eda')">1. Simulación y análisis</button>
+          <button type="button" class="report-tab-btn" onclick="switchReportTab('tab-train-sweep')">2. Entrenamiento y ajuste</button>
+          <button type="button" class="report-tab-btn" onclick="switchReportTab('tab-eval-compare')">3. Evaluación & Comparativa</button>
         </div>
-
-        <!-- TAB 1: SIMULACION & EDA -->
         <div id="tab-sim-eda" class="report-tab-content active">
           <div class="report-section">
             <div class="report-text">
               <h3>Física de la Simulación y Análisis de Datos</h3>
               <p>
-                Para evaluar los modelos, el script <code>generate_data.py</code> simula <strong>10,000 registros secuenciales</strong> de telemetría de servidores a intervalos de 1 minuto. En lugar de generar ruido aleatorio simple, implementa correlaciones físicas realistas:
+                El dataset se genera en <code>generate_data.py</code> y contiene <strong>10,000 registros secuenciales</strong> de telemetría a resolución de 1 minuto. En lugar de usar ruido aleatorio independiente, el generador introduce dependencias físicas y causales:
               </p>
               <ul>
-                <li><strong>Carga del Servidor:</strong> El uso de CPU y memoria se modela mediante procesos autorregresivos (AR-1) con picos de carga estocásticos aleatorios, imitando ráfagas de tráfico del mundo real.</li>
-                <li><strong>Tráfico de Red:</strong> Correlacionado positivamente con la CPU ($0.6 \times \text{CPU}$) sumado a ruido exponencial.</li>
-                <li><strong>Temperatura de CPU:</strong> Sigue una discretización de la <strong>Ley de Enfriamiento de Newton</strong>:
+                <li><strong>Carga del Servidor:</strong> Modelé el uso de CPU y memoria mediante procesos autorregresivos de primer orden (AR-1) complementados con picos de carga estocásticos aleatorios. De este modo, logré emular las ráfagas de tráfico del mundo real.</li>
+                <li><strong>Tráfico de Red:</strong> Lo correlacioné positivamente con la CPU ($0.6 \times \text{CPU}$) añadiendo un ruido de cola exponencial para representar transferencias grandes e inesperadas.</li>
+                <li><strong>Temperatura de CPU:</strong> La programé simulando una discretización de la <strong>Ley de Enfriamiento de Newton</strong>:
                   <br>
                   <code style="display:block;margin:6px 0;padding:6px;background:rgba(255,255,255,0.04);border-radius:6px;text-align:center;">
                     T_t = T_{t-1} + &alpha; &middot; cpu_load_t - &beta; &middot; (T_{t-1} - T_ambient) + &epsilon;_t
                   </code>
-                  donde $T_{\text{ambient}} = 35^\circ\text{C}$. Esto modela la <strong>inercia térmica</strong> (el disipador tarda un tiempo en calentarse y enfriarse).
+                  donde establecí $T_{\text{ambient}} = 35^\circ\text{C}$. Con esto logré simular la <strong>inercia térmica</strong> real de los servidores (el disipador tarda un tiempo no nulo en calentarse y en disipar el calor).
                 </li>
-                <li><strong>Lógica de Fallo Causal:</strong> Un fallo (<code>failure = 1</code>) ocurre con un <strong>90% de probabilidad</strong> si la temperatura supera los $80^\circ\text{C}$ y el uso de memoria es $>85\%$ durante <strong>3 o más pasos consecutivos</strong>. El ruido de fallo aleatorio se mantiene en solo $0.1\%$.</li>
-                <li><strong>Desbalance de Clases:</strong> Exactamente <strong>508 anomalías (5.08%)</strong> de un total de 10,000 registros, reflejando la rareza de los fallos de hardware en producción.</li>
+                <li><strong>Lógica de Fallo Causal:</strong> Configuré una regla causal estricta: un fallo (<code>failure = 1</code>) ocurre con un <strong>90% de probabilidad</strong> si la temperatura supera los $80^\circ\text{C}$ y el uso de memoria es mayor al $85\%$ durante <strong>3 o más pasos consecutivos</strong>. Limité el ruido de fallo puramente aleatorio a solo $0.1\%$ para asegurar que el modelo debiera aprender relaciones de causa física.</li>
+                <li><strong>Desbalance de Clases:</strong> Mi simulación generó exactamente <strong>508 anomalías (5.08%)</strong> de un total de 10,000 registros, recreando fielmente la rareza de los fallos de hardware en entornos de producción reales.</li>
               </ul>
 
               <div class="report-image-container square">
                 <img src="/images/matriz_correlacion.png" alt="Matriz de Correlación" />
-                <span class="report-image-title">Figura 1.1: Correlación lineal de sensores (matriz de correlación)</span>
+                <span class="report-image-title">Figura 1.1: Correlación lineal de sensores que obtuve en mi análisis exploratorio</span>
               </div>
 
               <p style="margin-top: 20px;">
-                La matriz de correlación anterior muestra la alta correlación lineal inducida entre la CPU y el tráfico de red, así como la fuerte dependencia de la temperatura con la carga de la CPU, simulando el acoplamiento físico real de los componentes térmicos de un servidor.
+                La matriz de correlación confirma la dependencia inducida entre CPU y tráfico de red, así como la inercia térmica de la temperatura respecto a la carga de CPU.
               </p>
 
               <div class="report-image-container square">
@@ -870,61 +737,59 @@
               </div>
 
               <p style="margin-top: 20px;">
-                Adicionalmente, se analiza la distribución de las variables bajo condiciones estables y de fallo. Como las anomalías son causadas por una combinación acumulativa de temperatura y memoria, las curvas normales y anómalas muestran un solapamiento en sus rangos de operación normales, requiriendo que la red neuronal aprenda las sutilezas de la dinámica temporal para no generar falsas alarmas.
+                El solapamiento entre estados normales y de fallo en rangos de operación intermedios justifica el uso de una ventana temporal causal en lugar de un clasificador basado en lecturas aisladas.
               </p>
 
               <div class="report-image-container wide">
                 <img src="/images/distribucion_variables_fallo.png" alt="Distribución de variables bajo fallo" />
-                <span class="report-image-title">Figura 1.3: Distribución de densidad de sensores en estados normales y de fallo (todo el ancho)</span>
+                <span class="report-image-title">Figura 1.3: Distribución de densidad de sensores en estados normales y de fallo (vista a todo el ancho)</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- TAB 2: ENTRENAMIENTO & SWEEP -->
         <div id="tab-train-sweep" class="report-tab-content">
           <div class="report-section">
             <div class="report-text">
               <h3>Bucle de Entrenamiento y Optimización (Sweep)</h3>
               <p>
-                Diseñamos un bucle en PyTorch con la función de pérdida <code>BCEWithLogitsLoss</code>. Para encontrar la configuración óptima y balancear la clase minoritaria, ejecutamos una búsqueda en cuadrícula (grid search) exhaustiva de <strong>162 combinaciones</strong>.
+                El entrenamiento se implementa en PyTorch con <code>BCEWithLogitsLoss</code>. Para ajustar arquitectura, regularización y umbral de decisión se ejecutó un grid sweep de <strong>162 combinaciones</strong>.
               </p>
               <ul>
                 <li><strong>Cuello de Botella I/O vs Cómputo (MPS vs CUDA):</strong>
-                  El sweep completo tardó <strong>16.1 minutos en Apple Silicon M4 (MPS)</strong> y <strong>17.8 minutos en un PC con RTX 4070 Super (CUDA)</strong>. Debido a que el modelo MLP base es pequeño (3,649 parámetros), el tiempo no se consume en operaciones matemáticas, sino en transferir tensores CPU $\leftrightarrow$ GPU y en el overhead del intérprete. La arquitectura de memoria unificada del chip M4 eliminó este overhead de bus, superando a la RTX 4070.
+                  El sweep tardó <strong>16.1 minutos en Apple Silicon M4 (MPS)</strong> y <strong>17.8 minutos en RTX 4070 Super (CUDA)</strong>. Dado que el MLP tiene solo 3,649 parámetros, el cuello de botella es I/O y overhead de ejecución, no cómputo puro.
                 </li>
                 <li><strong>El Pitfall de MPS (Corrupción de Tensores):</strong>
-                  Durante el desarrollo en Mac, descubrimos que activar <code>non_blocking=True</code> al pasar tensores a la GPU (<code>tensor.to(device, non_blocking=True)</code>) corrompía las variables interactivas de PyTorch, produciendo pérdidas de magnitud $10^{23}$ y gradientes nulos. Esto ocurre porque MPS procesa encolados asíncronos y leía buffers antes de completarse la escritura. La solución fue remover este flag o establecerlo en False.
+                  En MPS, activar <code>non_blocking=True</code> al mover tensores al dispositivo produjo corrupción intermitente de valores. La solución adoptada fue usar transferencias síncronas estándar.
                 </li>
                 <li><strong>Calibración del Umbral de Decisión:</strong>
-                  El sweep escaneó la curva Precision-Recall en validación. Cambiar de un umbral estándar de $0.50$ a un **umbral calibrado de $0.71$**, escalando el peso de clase (<code>pos_weight_scale = 0.25</code>, efectivo $4.70$), mejoró dramáticamente el balance del modelo, aumentando el F1-Score en validación de <strong>0.647 a 0.854</strong>.
+                  Sobre la curva Precision-Recall de validación se calibró el umbral desde $0.50$ hasta **0.71**. Con <code>pos_weight_scale = 0.25</code> el peso efectivo quedó en $4.70$, y el F1 de validación mejoró de **0.647** a **0.854**.
                 </li>
               </ul>
 
               <div class="report-image-container wide">
                 <img src="/images/training_curves.png" alt="Curvas de Entrenamiento MLP" />
-                <span class="report-image-title">Figura 2.1: Curvas de pérdida y validación del modelo base MLP (todo el ancho)</span>
+                <span class="report-image-title">Figura 2.1: Curvas de pérdida y validación de mi modelo base MLP (vista a todo el ancho)</span>
               </div>
 
               <p style="margin-top: 20px;">
-                Las curvas de entrenamiento del MLP revelan la convergencia del modelo, mostrando cómo la pérdida se reduce progresivamente y el F1-score de validación se estabiliza con un comportamiento suave debido al Dropout (0.2) y Early Stopping. A continuación, comparamos estas curvas con las de la variante GRU.
+                Las curvas del MLP muestran una convergencia estable y una validación consistente con regularización moderada y early stopping.
               </p>
 
               <div class="report-image-container wide">
                 <img src="/images/training_curves_gru.png" alt="Curvas de Entrenamiento GRU" />
-                <span class="report-image-title">Figura 2.2: Curvas de pérdida y validación del modelo variante GRU (todo el ancho)</span>
+                <span class="report-image-title">Figura 2.2: Curvas de pérdida y validación de mi variante recurrente GRU (vista a todo el ancho)</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- TAB 3: EVALUACION COMPARATIVA -->
         <div id="tab-eval-compare" class="report-tab-content">
           <div class="report-section">
             <div class="report-text">
               <h3>Evaluación Final: MLP vs GRU</h3>
               <p>
-                Para evaluar si un modelo secuencial nativo aportaba ventajas para la predicción del fallo en una ventana corta de 5 minutos, implementamos una variante basada en una celda **GRU** y mantuvimos el mismo número aproximado de parámetros.
+                Para validar si un modelo secuencial nativo aportaba ventaja real en una ventana de solo 5 pasos, se entrenó una variante **GRU** y se comparó contra el MLP final incluido en la entrega.
               </p>
               
               <div class="report-table-wrapper">
@@ -940,7 +805,7 @@
                     <tr>
                       <td><strong>Parámetros</strong></td>
                       <td>3,649</td>
-                      <td>3,681</td>
+                      <td>13,505</td>
                     </tr>
                     <tr>
                       <td><strong>Estructura</strong></td>
@@ -948,18 +813,28 @@
                       <td>Recurrente secuencial [batch, 5, 4]</td>
                     </tr>
                     <tr>
-                      <td><strong>F1-Score (Test)</strong></td>
+                      <td><strong>Umbral</strong></td>
+                      <td><strong>0.710</strong></td>
+                      <td><strong>0.613</strong></td>
+                    </tr>
+                    <tr>
+                      <td><strong>Mejor F1 en validación</strong></td>
+                      <td><strong>0.8545</strong></td>
+                      <td><strong>0.8393</strong></td>
+                    </tr>
+                    <tr>
+                      <td><strong>F1 en test</strong></td>
                       <td><strong>0.8384</strong></td>
                       <td><strong>0.8155</strong></td>
                     </tr>
                     <tr>
-                      <td><strong>Precision (Test)</strong></td>
-                      <td><strong>0.8475</strong></td>
+                      <td><strong>Precisión en test</strong></td>
+                      <td><strong>0.8469</strong></td>
                       <td><strong>0.7925</strong></td>
                     </tr>
                     <tr>
-                      <td><strong>Recall (Test)</strong></td>
-                      <td><strong>0.8302</strong></td>
+                      <td><strong>Recall en test</strong></td>
+                      <td><strong>0.8300</strong></td>
                       <td><strong>0.8400</strong></td>
                     </tr>
                   </tbody>
@@ -967,26 +842,250 @@
               </div>
 
               <p>
-                <strong>Conclusión sobre el comportamiento de la GRU:</strong>
-                Con secuencias muy cortas (ventana de 5 minutos), el sesgo inductivo recurrente del GRU no ofrece una ventaja real. Por el contrario, tiende a sobreajustar en el entrenamiento y a ser demasiado sensible ante variaciones de temperatura menores, disparando falsas alarmas (reduciendo la Precisión). 
+                <strong>Conclusión técnica:</strong>
+                Con secuencias extremadamente cortas, la GRU mejora ligeramente el recall, pero cede demasiada precisión frente al MLP. El resultado neto es un F1 inferior con una arquitectura claramente más grande para este dataset.
               </p>
               <p>
-                Por lo tanto, el modelo **MLP con ventana deslizante** y umbral calibrado de **0.71** es el más robusto, generalizando con éxito en el conjunto de prueba (F1 de test = 0.8384).
+                Por ese motivo, el modelo principal de la demo es el **MLP con ventana deslizante aplanada** y umbral calibrado de **0.71**, que ofrece el mejor equilibrio entre precisión, recall y simplicidad operativa.
               </p>
 
               <div class="report-image-container square">
                 <img src="/images/test_confusion_matrix.png" alt="Matriz de Confusión MLP" />
-                <span class="report-image-title">Figura 3.1: Matriz de confusión del modelo base MLP en el test split</span>
+                <span class="report-image-title">Figura 3.1: Matriz de confusión del modelo base MLP en el conjunto de test</span>
               </div>
 
               <div class="report-image-container square">
                 <img src="/images/test_confusion_matrix_gru.png" alt="Matriz de Confusión GRU" />
-                <span class="report-image-title">Figura 3.2: Matriz de confusión del modelo variante GRU en el test split</span>
+                <span class="report-image-title">Figura 3.2: Matriz de confusión de la variante GRU en el conjunto de test</span>
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      <section class="layout main-demo">
+        <article class="panel">
+          <h2>Inferencia Instantánea</h2>
+          <p class="muted">
+            Ajusta los sliders para obtener una estimación inmediata sobre el checkpoint final entrenado.
+          </p>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <strong>Uso de CPU</strong>
+              <span class="slider-value" data-value-for="cpu_usage">52%</span>
+            </div>
+            <input id="cpu_usage" type="range" min="0" max="100" step="1" value="52" />
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <strong>Uso de Memoria</strong>
+              <span class="slider-value" data-value-for="mem_usage">64%</span>
+            </div>
+            <input id="mem_usage" type="range" min="0" max="100" step="1" value="64" />
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <strong>Tráfico de Red</strong>
+              <span class="slider-value" data-value-for="network_traffic">95 MB/s</span>
+            </div>
+            <input id="network_traffic" type="range" min="0" max="200" step="1" value="95" />
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <strong>Temperatura de CPU</strong>
+              <span class="slider-value" data-value-for="cpu_temp">73 °C</span>
+            </div>
+            <input id="cpu_temp" type="range" min="0" max="105" step="1" value="73" />
+          </div>
+
+          <div class="prob-track">
+            <div class="prob-fill" id="prob-fill"></div>
+          </div>
+          <strong id="prob-label">0.00%</strong>
+          <p id="decision" class="decision">Esperando entrada…</p>
+          <p class="meta" id="prediction-meta">Clase predicha: --</p>
+          <p class="meta" id="status-meta">
+            {% if ready %}Modelo listo para inferencia local{% else %}Modelo no disponible{% endif %}
+          </p>
+          <div class="trend-row">
+            <button id="trend-btn" type="button" class="ghost" disabled>
+              Aplicar tendencia (0/5)
+            </button>
+            <span class="meta" id="trend-hint">
+              Registra 5 estados para construir una ventana temporal real.
+            </span>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Análisis Batch por CSV</h2>
+          <p class="muted">
+            Sube un CSV con `timestamp`, `cpu_usage`, `mem_usage`, `network_traffic` y `cpu_temp` para evaluar una serie completa. Si no tienes uno disponible, puedes usar uno de los escenarios reales del conjunto de test:
+          </p>
+
+          <div class="preset-row">
+            <button id="preset-ramp_up" type="button" class="ghost" data-scenario="ramp_up">
+              Rampa de crisis
+            </button>
+            <button id="preset-hot_cluster" type="button" class="ghost" data-scenario="hot_cluster">
+              Cluster sobrecalentado
+            </button>
+            <button id="preset-calm_baseline" type="button" class="ghost" data-scenario="calm_baseline">
+              Línea base estable
+            </button>
+          </div>
+
+          <label class="dropzone" id="dropzone">
+            <input id="file-input" type="file" accept=".csv" class="hidden" />
+            <strong>Arrastra tu CSV aquí o haz clic para buscarlo</strong>
+            <p class="muted">Se generarán probabilidades, predicciones y un CSV de salida descargable.</p>
+          </label>
+
+          <div id="warning-list" class="warning-list hidden"></div>
+
+          <div id="summary-panel" class="summary-grid hidden">
+            <div class="summary-card">
+              <span class="muted">Registros</span>
+              <strong id="summary-rows">0</strong>
+            </div>
+            <div class="summary-card">
+              <span class="muted">Anomalías</span>
+              <strong id="summary-anomalies">0</strong>
+            </div>
+            <div class="summary-card">
+              <span class="muted">Tasa de Anomalías</span>
+              <strong id="summary-rate">0%</strong>
+            </div>
+            <div class="summary-card">
+              <span class="muted">Pico Térmico Máximo</span>
+              <strong id="summary-peak">--</strong>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="analyze-btn" type="button">Analizar CSV</button>
+            <button id="download-btn" class="secondary" type="button" disabled>
+              Descargar CSV Analizado
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <section id="temporal-view-section" class="panel hidden temporal-panel">
+        <h2>Vista Temporal</h2>
+        <p class="muted" id="temporal-view-meta">
+          Visualización de la ventana de tendencia actual o del resultado completo del análisis por lotes. Las anomalías estimadas se resaltan con marcadores rojos.
+        </p>
+        <div class="chart-wrap">
+          <canvas id="timeline-chart"></canvas>
+        </div>
+      </section>
+
+      <section class="panel simulation-panel">
+        <h2>Simulación en Tiempo Real</h2>
+        <p class="muted">
+          Reproducción paso a paso de un fragmento del conjunto de test, evaluando el modelo MLP sobre ventanas reales de 5 pasos. Se comparan predicciones y etiquetas reales y se actualizan métricas en vivo.
+        </p>
+
+        <div class="sim-controls">
+          <label>
+            <span class="muted">Escenario</span>
+            <select id="sim-scenario"></select>
+          </label>
+          <label>
+            <span class="muted">Velocidad</span>
+            <select id="sim-speed">
+              <option value="1000">1× (1 s/tick)</option>
+              <option value="500">2×</option>
+              <option value="200" selected>5×</option>
+              <option value="100">10×</option>
+              <option value="50">20×</option>
+            </select>
+          </label>
+          <button id="sim-play" type="button">▶ Reproducir</button>
+          <button id="sim-pause" type="button" class="secondary" disabled>Pausar</button>
+          <button id="sim-reset" type="button" class="secondary" disabled>Reiniciar</button>
+        </div>
+        <p class="meta" id="sim-status">Selecciona un escenario y pulsa Reproducir para comenzar.</p>
+
+        <div class="sim-grid">
+          <div class="sim-card">
+            <span class="muted">Paso / Tick</span>
+            <strong id="sim-tick">0 / 0</strong>
+          </div>
+          <div class="sim-card">
+            <span class="muted">Última lectura</span>
+            <strong id="sim-current">--</strong>
+          </div>
+          <div class="sim-card">
+            <span class="muted">Predicción</span>
+            <strong id="sim-pred">--</strong>
+          </div>
+          <div class="sim-card">
+            <span class="muted">Fallo real</span>
+            <strong id="sim-actual">--</strong>
+          </div>
+        </div>
+
+        <div class="sim-grid">
+          <div class="sim-card metric-card">
+            <span class="muted">Verdaderos Positivos (TP)</span>
+            <strong id="sim-tp">0</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">Falsos Positivos (FP)</span>
+            <strong id="sim-fp">0</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">Falsos Negativos (FN)</span>
+            <strong id="sim-fn">0</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">Verdaderos Negativos (TN)</span>
+            <strong id="sim-tn">0</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">F1</span>
+            <strong id="sim-f1">--</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">Precisión</span>
+            <strong id="sim-prec">--</strong>
+          </div>
+          <div class="sim-card metric-card">
+            <span class="muted">Recall</span>
+            <strong id="sim-rec">--</strong>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="sim-chart"></canvas>
+        </div>
+      </section>
+
+      <section class="panel chat-shell chat-panel">
+        <h2>Consulta Documental</h2>
+        <p class="muted">
+          Consulta decisiones de diseño, métricas y detalles de implementación. Este módulo utiliza un RAG local sobre la documentación del proyecto y responde con citas trazables.
+        </p>
+        {% if not rag_ready %}
+        <p class="warning">El chat RAG arrancó en modo degradado: {{ rag_error }}</p>
+        {% endif %}
+        <div id="chat-log" class="chat-log">
+          <div class="bubble assistant">
+            Puedes consultar decisiones técnicas del proyecto, por ejemplo: "¿Por qué se eligió MLP sobre GRU?" o "¿Qué umbral se calibró para el modelo final?".
+          </div>
+        </div>
+        <form id="chat-form" class="chat-form">
+          <textarea id="chat-input" placeholder="Consulta métricas, arquitectura, datos o decisiones de diseño..."></textarea>
+          <button id="chat-send" type="submit">Preguntar</button>
+        </form>
+      </section>
+
     </main>
 
     <script>
@@ -1063,16 +1162,16 @@
         const percent = data.probability * 100;
         probFill.style.width = `${percent.toFixed(2)}%`;
         probLabel.textContent = `${percent.toFixed(2)}%`;
-        decisionEl.textContent = data.decision;
+        decisionEl.textContent = data.decision === "Anomaly risk detected" ? "Riesgo de anomalía detectado" : (data.decision === "System appears stable" ? "El sistema parece estable" : data.decision);
         decisionEl.className = `decision ${data.prediction === 1 ? "risk" : "safe"}`;
-        predictionMeta.textContent = `Prediction class: ${data.prediction}`;
-        statusMeta.textContent = `Threshold ${data.threshold.toFixed(2)} · snapshot inference`;
+        predictionMeta.textContent = `Clase predicha: ${data.prediction}`;
+        statusMeta.textContent = `Umbral: ${data.threshold.toFixed(2)} · inferencia instantánea`;
       };
 
       const renderPredictionError = (message) => {
-        decisionEl.textContent = "Inference unavailable";
+        decisionEl.textContent = "Inferencia no disponible";
         decisionEl.className = "decision risk";
-        predictionMeta.textContent = "Prediction class: --";
+        predictionMeta.textContent = "Clase predicha: --";
         statusMeta.textContent = message;
         probFill.style.width = "0%";
         probLabel.textContent = "0.00%";
@@ -1106,16 +1205,16 @@
         a.cpu_temp === b.cpu_temp;
 
       const refreshTrendUi = () => {
-        trendBtn.textContent = `Apply trend (${trendBuffer.length}/${TREND_WINDOW})`;
+        trendBtn.textContent = `Aplicar tendencia (${trendBuffer.length}/${TREND_WINDOW})`;
         trendBtn.disabled = trendBuffer.length === 0;
         if (trendBuffer.length === 0) {
-          trendHint.textContent = "Move the sliders to build a real temporal window.";
+          trendHint.textContent = "Mueve los sliders para construir una ventana temporal real en mi buffer.";
         } else if (trendBuffer.length < TREND_WINDOW) {
-          trendHint.textContent = `${TREND_WINDOW - trendBuffer.length} more reading${
+          trendHint.textContent = `Recomiendo registrar ${TREND_WINDOW - trendBuffer.length} lectura${
             TREND_WINDOW - trendBuffer.length === 1 ? "" : "s"
-          } recommended; older readings will be padded.`;
+          } más en mi buffer; las lecturas anteriores se completarán automáticamente.`;
         } else {
-          trendHint.textContent = "Buffer full: 5 chronological readings ready.";
+          trendHint.textContent = "Buffer listo: tengo las 5 lecturas secuenciales necesarias.";
         }
       };
 
@@ -1204,7 +1303,7 @@
           },
           {
             // Horizontal threshold reference line across the whole window.
-            label: `threshold ${threshold.toFixed(2)}`,
+            label: `umbral ${threshold.toFixed(2)}`,
             data: labels.map(() => threshold),
             borderColor: "rgba(255, 255, 255, 0.5)",
             borderDash: [6, 4],
@@ -1263,13 +1362,13 @@
           },
         });
 
-        const verdict = predicted === 1 ? "ANOMALY risk" : "stable";
+        const verdict = predicted === 1 ? "Riesgo de ANOMALÍA" : "estable";
         const last = readings[readings.length - 1];
         temporalViewMeta.textContent =
-          `Trend window · ${readings.length} reading${readings.length === 1 ? "" : "s"} · ` +
-          `last: CPU ${last.cpu_usage.toFixed(1)}% · Mem ${last.mem_usage.toFixed(1)}% · ` +
+          `Ventana de tendencia · ${readings.length} lectura${readings.length === 1 ? "" : "s"} · ` +
+          `última: CPU ${last.cpu_usage.toFixed(1)}% · Mem ${last.mem_usage.toFixed(1)}% · ` +
           `Temp ${last.cpu_temp.toFixed(1)}°C · ` +
-          `probability ${(probability * 100).toFixed(2)}% (thr ${threshold.toFixed(2)}) → ${verdict}`;
+          `probabilidad ${(probability * 100).toFixed(2)}% (umbral ${threshold.toFixed(2)}) → ${verdict}`;
       };
 
       const requestTrendPrediction = async () => {
@@ -1278,7 +1377,7 @@
         }
         trendBtn.disabled = true;
         const previousLabel = trendBtn.textContent;
-        trendBtn.textContent = "Scoring trend…";
+        trendBtn.textContent = "Evaluando tendencia…";
         const snapshotOfBuffer = trendBuffer.map((reading) => ({ ...reading }));
         try {
           const response = await fetch("/predict_window", {
@@ -1302,11 +1401,11 @@
             data.prediction,
             data.threshold,
           );
-          const verdict = data.prediction === 1 ? "ANOMALY" : "stable";
-          trendHint.textContent = `Trend result · ${(data.probability * 100).toFixed(1)}% · ${verdict} (see Temporal View).`;
+          const verdict = data.prediction === 1 ? "ANOMALÍA" : "estable";
+          trendHint.textContent = `Resultado de tendencia · ${(data.probability * 100).toFixed(1)}% · ${verdict} (ver Vista Temporal).`;
         } catch (error) {
-          temporalViewMeta.textContent = `Trend prediction failed: ${error.message}`;
-          trendHint.textContent = `Trend prediction failed: ${error.message}`;
+          temporalViewMeta.textContent = `Error en predicción de tendencia: ${error.message}`;
+          trendHint.textContent = `Error en predicción de tendencia: ${error.message}`;
         } finally {
           trendBtn.disabled = false;
           trendBtn.textContent = previousLabel;
@@ -1320,7 +1419,7 @@
         selectedFile = file;
         if (file) {
           dropzone.querySelector("strong").textContent = file.name;
-          dropzone.querySelector("p").textContent = `${(file.size / 1024).toFixed(1)} KB ready for analysis`;
+          dropzone.querySelector("p").textContent = `${(file.size / 1024).toFixed(1)} KB listo para análisis`;
         }
       };
 
@@ -1360,9 +1459,9 @@
           }));
         const anomalyCount = anomalyPoints.length;
         temporalViewMeta.textContent =
-          `Batch result · ${records.length} rows · ${anomalyCount} anomal${
-            anomalyCount === 1 ? "y" : "ies"
-          } highlighted in red`;
+          `Resultado batch · ${records.length} registros · ${anomalyCount} anomalía${
+            anomalyCount === 1 ? "" : "s"
+          } destacada${anomalyCount === 1 ? "" : "s"} en rojo`;
 
         if (chart) {
           chart.destroy();
@@ -1391,7 +1490,7 @@
               },
               {
                 type: "scatter",
-                label: "Predicted anomaly",
+                label: "Anomalía predicha",
                 data: anomalyPoints,
                 borderColor: "#ff6b6b",
                 backgroundColor: "#ff6b6b",
@@ -1431,12 +1530,12 @@
 
       const analyzeCsv = async () => {
         if (!selectedFile) {
-          renderWarnings(["Select a CSV file before analysis."]);
+          renderWarnings(["Por favor, selecciona un archivo CSV antes de analizar."]);
           return;
         }
 
         analyzeBtn.disabled = true;
-        analyzeBtn.textContent = "Analyzing...";
+        analyzeBtn.textContent = "Analizando...";
         try {
           const formData = new FormData();
           formData.append("file", selectedFile);
@@ -1446,21 +1545,21 @@
           });
           const data = await response.json();
           if (!response.ok) {
-            throw new Error(data.detail || "CSV analysis failed");
+            throw new Error(data.detail || "Error en el análisis del CSV");
           }
           renderBatchResult(data);
         } catch (error) {
           renderWarnings([error.message]);
         } finally {
           analyzeBtn.disabled = false;
-          analyzeBtn.textContent = "Analyze CSV";
+          analyzeBtn.textContent = "Analizar CSV";
         }
       };
 
       const analyzePreset = async (scenarioId, button) => {
         const previousLabel = button.textContent;
         button.disabled = true;
-        button.textContent = "Analyzing...";
+        button.textContent = "Analizando...";
         try {
           const response = await fetch("/analyze_preset", {
             method: "POST",
@@ -1469,7 +1568,7 @@
           });
           const data = await response.json();
           if (!response.ok) {
-            throw new Error(data.detail || "Preset analysis failed");
+            throw new Error(data.detail || "Error al analizar el preset");
           }
           renderBatchResult(data);
         } catch (error) {
@@ -1491,7 +1590,7 @@
         });
         if (!response.ok) {
           const detail = await response.json();
-          renderWarnings([detail.detail || "Download failed"]);
+          renderWarnings([detail.detail || "Descarga fallida"]);
           return;
         }
         const blob = await response.blob();
@@ -1534,7 +1633,7 @@
         appendBubble("user", question.replace(/\n/g, "<br />"));
         chatInput.value = "";
         chatSend.disabled = true;
-        chatSend.textContent = "Thinking...";
+        chatSend.textContent = "Pensando...";
 
         try {
           const response = await fetch("/ask", {
@@ -1544,7 +1643,7 @@
           });
           const data = await response.json();
           if (!response.ok) {
-            throw new Error(data.detail || "RAG request failed");
+            throw new Error(data.detail || "Error en la consulta al RAG");
           }
           appendBubble(
             "assistant",
@@ -1554,7 +1653,7 @@
           appendBubble("assistant", `<span class="warning">${error.message}</span>`);
         } finally {
           chatSend.disabled = false;
-          chatSend.textContent = "Ask";
+          chatSend.textContent = "Preguntar";
         }
       };
 
@@ -1623,7 +1722,7 @@
         try {
           const response = await fetch("/simulation/scenarios");
           if (!response.ok) {
-            throw new Error("Could not load scenarios");
+            throw new Error("No se pudieron cargar los escenarios");
           }
           const scenarios = await response.json();
           simState.scenarios = scenarios;
@@ -1637,8 +1736,8 @@
           });
         } catch (error) {
           simScenarioSelect.innerHTML =
-            '<option value="">Scenarios unavailable</option>';
-          simStatus.textContent = `Could not load scenarios: ${error.message}`;
+            '<option value="">Escenarios no disponibles</option>';
+          simStatus.textContent = `No se pudieron cargar los escenarios: ${error.message}`;
         }
       };
 
@@ -1849,19 +1948,19 @@
         );
         resetSimChart();
         setControlsRunning(false, false);
-        simStatus.textContent = "Pick a scenario and press Play to start.";
+        simStatus.textContent = "Selecciona un escenario y pulsa Reproducir para comenzar.";
       };
 
       const fetchScenarioRows = async (scenarioId) => {
         const scenario = simState.scenarios.find((s) => s.id === scenarioId);
         if (!scenario) {
-          throw new Error("Unknown scenario");
+          throw new Error("Escenario desconocido");
         }
         const url = `/simulation/stream?start=${scenario.start}&length=${scenario.length}`;
         const response = await fetch(url);
         if (!response.ok) {
           const detail = await response.json();
-          throw new Error(detail.detail || "Could not fetch simulation rows");
+          throw new Error(detail.detail || "No se pudieron obtener las lecturas de simulación");
         }
         return await response.json();
       };
@@ -1870,7 +1969,7 @@
         if (simState.idx >= simState.scenarioRows.length) {
           stopSimTimer();
           setControlsRunning(false, true);
-          simStatus.textContent = "Simulation finished. Press Reset to clear.";
+          simStatus.textContent = "Simulación finalizada. Pulsa Reiniciar para limpiar.";
           return;
         }
         const row = simState.scenarioRows[simState.idx];
@@ -1905,14 +2004,14 @@
           });
           if (!response.ok) {
             const detail = await response.json();
-            throw new Error(detail.detail || "Prediction failed");
+            throw new Error(detail.detail || "Error en la predicción");
           }
           const data = await response.json();
           probability = data.probability;
           predicted = data.prediction;
           threshold = data.threshold;
         } catch (error) {
-          simStatus.textContent = `Tick ${simState.idx}: ${error.message}`;
+          simStatus.textContent = `Paso ${simState.idx}: ${error.message}`;
           stopSimTimer();
           setControlsRunning(false, true);
           return;
@@ -1928,8 +2027,8 @@
         simCurrent.textContent = `CPU ${row.cpu_usage.toFixed(1)}% · Mem ${row.mem_usage.toFixed(
           1,
         )}% · Temp ${row.cpu_temp.toFixed(1)}°C`;
-        simPred.textContent = `${predicted === 1 ? "ANOMALY" : "stable"} (${(probability * 100).toFixed(1)}%)`;
-        simActual.textContent = actual === 1 ? "ANOMALY" : "stable";
+        simPred.textContent = `${predicted === 1 ? "ANOMALÍA" : "estable"} (${(probability * 100).toFixed(1)}%)`;
+        simActual.textContent = actual === 1 ? "ANOMALÍA" : "estable";
         setBadge(simPred.parentElement, predicted, "pred");
         setBadge(simActual.parentElement, actual, "actual");
 
@@ -1939,9 +2038,9 @@
           prediction: predicted,
           threshold,
           decision:
-            predicted === 1 ? "Anomaly risk detected" : "System appears stable",
+            predicted === 1 ? "Riesgo de anomalía detectado" : "El sistema parece estable",
         });
-        statusMeta.textContent = `Live simulation · tick ${simState.idx} · threshold ${threshold.toFixed(2)}`;
+        statusMeta.textContent = `Simulación en vivo · paso ${simState.idx} · umbral ${threshold.toFixed(2)}`;
 
         pushSimPoint(row, probability, predicted);
         updateConfusionUi();
@@ -1951,12 +2050,12 @@
         if (simState.playing) return;
         const scenarioId = simScenarioSelect.value;
         if (!scenarioId) {
-          simStatus.textContent = "No scenario available.";
+          simStatus.textContent = "No hay escenarios disponibles.";
           return;
         }
         // Fresh start only when there are no rows queued yet; otherwise resume.
         if (simState.scenarioRows.length === 0) {
-          simStatus.textContent = "Loading scenario…";
+          simStatus.textContent = "Cargando escenario…";
           try {
             const data = await fetchScenarioRows(scenarioId);
             simState.scenarioRows = data.rows;
@@ -1966,16 +2065,16 @@
             updateConfusionUi();
             resetSimChart();
           } catch (error) {
-            simStatus.textContent = `Could not start: ${error.message}`;
+            simStatus.textContent = `No se pudo iniciar: ${error.message}`;
             return;
           }
         }
         simState.playing = true;
         setControlsRunning(true, true);
         const interval = Number(simSpeedSelect.value) || 1000;
-        simStatus.textContent = `Playing scenario "${
+        simStatus.textContent = `Reproduciendo escenario "${
           simState.scenarios.find((s) => s.id === scenarioId)?.label || scenarioId
-        }" · ${simState.scenarioRows.length} ticks · ${interval} ms/tick`;
+        }" · ${simState.scenarioRows.length} pasos · ${interval} ms/paso`;
         simState.timer = setInterval(advanceTick, interval);
       };
 
@@ -1983,7 +2082,7 @@
         if (!simState.playing) return;
         stopSimTimer();
         setControlsRunning(false, true);
-        simStatus.textContent = `Paused at tick ${simState.idx}/${simState.scenarioRows.length}.`;
+        simStatus.textContent = `Pausado en el paso ${simState.idx}/${simState.scenarioRows.length}.`;
       };
 
       simPlayBtn.addEventListener("click", startSimulation);

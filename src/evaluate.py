@@ -1,11 +1,12 @@
-"""Evaluate the trained AnomalyDetectorMLP on the temporal test split.
+"""Evaluate a trained anomaly detector on the temporal test split.
 
-Loads ``best_model.pth`` (reconstructs the architecture from the metadata
-saved at training time) and the persisted ``scaler.joblib``. Re-builds
-the test :class:`DataLoader` from ``dataset_servidores.csv`` using the
-same temporal split as training (last 15 % of rows), runs inference at
-the calibrated decision threshold, prints classification metrics and
-saves a confusion-matrix heatmap to ``test_confusion_matrix.png``.
+Loads a checkpoint (MLP or GRU), reconstructs the architecture from the
+metadata saved at training time, and reuses the persisted
+``artifacts/scaler.joblib``. It then re-builds the test
+:class:`DataLoader` from ``dataset_servidores.csv`` using the same
+temporal split as training (last 15 % of rows), runs inference at the
+checkpoint's calibrated decision threshold, prints classification
+metrics, and saves a confusion-matrix heatmap.
 
 Run from the repository root::
 
@@ -51,7 +52,12 @@ PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 DEFAULT_CSV_PATH: Path = PROJECT_ROOT / "dataset_servidores.csv"
 DEFAULT_SCALER_PATH: Path = PROJECT_ROOT / "artifacts" / "scaler.joblib"
 DEFAULT_CHECKPOINT_PATH: Path = PROJECT_ROOT / "best_model.pth"
-DEFAULT_CM_PATH: Path = PROJECT_ROOT / "test_confusion_matrix.png"
+
+
+def default_cm_path_for_model(model_type: str) -> Path:
+    """Return the default confusion-matrix output path for a model type."""
+    suffix = "_gru" if model_type == "gru" else ""
+    return PROJECT_ROOT / f"test_confusion_matrix{suffix}.png"
 
 
 def load_checkpoint(
@@ -200,11 +206,20 @@ def plot_confusion_matrix(
 
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
-    parser = argparse.ArgumentParser(description="Evaluate AnomalyDetectorMLP")
+    parser = argparse.ArgumentParser(
+        description="Evaluate a trained MLP or GRU anomaly detector"
+    )
     parser.add_argument("--csv-path", type=Path, default=DEFAULT_CSV_PATH)
     parser.add_argument("--scaler-path", type=Path, default=DEFAULT_SCALER_PATH)
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT_PATH)
-    parser.add_argument("--cm-path", type=Path, default=DEFAULT_CM_PATH)
+    parser.add_argument(
+        "--cm-path",
+        type=Path,
+        default=None,
+        help="Optional output path for the confusion matrix. Defaults to "
+        "`test_confusion_matrix.png` for MLP and "
+        "`test_confusion_matrix_gru.png` for GRU.",
+    )
     parser.add_argument(
         "--model-type",
         type=str,
@@ -319,9 +334,10 @@ def main() -> None:
         ),
     )
 
+    cm_path = args.cm_path or default_cm_path_for_model(model_type)
     plot_confusion_matrix(
         cm,
-        args.cm_path,
+        cm_path,
         title=f"Test Confusion Matrix (threshold={threshold:.3f}, F1={f1:.3f})",
     )
 
