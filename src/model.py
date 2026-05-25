@@ -74,3 +74,95 @@ class AnomalyDetectorMLP(nn.Module):
             Tensor of shape ``[batch, 1]`` containing logits.
         """
         return self.net(x)
+
+
+class AnomalyDetectorGRU(nn.Module):
+    """GRU classifier that consumes the sliding window as a native sequence.
+
+    The dataset emits each window flattened as a vector of length
+    ``seq_len * num_features`` in row-major chronological order
+    (``[t0_f0..t0_fN, t1_f0..t1_fN, ...]``). This module reshapes the
+    flattened tensor back to ``[batch, seq_len, num_features]`` and lets
+    a recurrent layer model the temporal dependencies natively, instead
+    of forcing an MLP to recover them from a vector.
+
+    Architecture::
+
+        x [B, seq_len*num_features]
+          -> view(-1, seq_len, num_features)
+          -> GRU(input_size=num_features, hidden_size, num_layers)
+          -> take last time-step: out[:, -1, :]
+          -> Dropout
+          -> Linear(hidden_size, 1)
+          -> raw logits
+
+    PyTorch's ``nn.GRU`` only applies the ``dropout`` argument *between*
+    stacked layers, so we add an explicit ``nn.Dropout`` after the
+    recurrent output to regularise the single-layer case as well.
+
+    Args:
+        num_features: Features per time step (default ``4``).
+        seq_len: Window length used by the dataset (default ``5``).
+        hidden_size: Hidden state dimension of the GRU.
+        num_layers: Number of stacked GRU layers.
+        dropout: Probability for the post-GRU dropout and the inter-layer
+            dropout when ``num_layers > 1``.
+
+    Raises:
+        ValueError: If ``num_features``, ``seq_len``, ``hidden_size`` or
+            ``num_layers`` are not positive.
+    """
+
+    def __init__(
+        self,
+        num_features: int = 4,
+        seq_len: int = 5,
+        hidden_size: int = 32,
+        num_layers: int = 1,
+        dropout: float = 0.3,
+    ) -> None:
+        super().__init__()
+        if num_features <= 0 or seq_len <= 0 or hidden_size <= 0 or num_layers <= 0:
+            raise ValueError(
+                "num_features, seq_len, hidden_size and num_layers must be > 0; "
+                f"got {num_features=}, {seq_len=}, {hidden_size=}, {num_layers=}"
+            )
+
+        self.num_features = num_features
+        self.seq_len = seq_len
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.dropout_p = dropout
+
+        self.gru = nn.GRU(
+            input_size=num_features,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout if num_layers > 1 else 0.0,
+        )
+        self.head_dropout = nn.Dropout(p=dropout)
+        self.fc = nn.Linear(hidden_size, 1)
+        logger.debug(
+            "Initialized AnomalyDetectorGRU: num_features=%d seq_len=%d "
+            "hidden_size=%d num_layers=%d dropout=%.2f",
+            num_features,
+            seq_len,
+            hidden_size,
+            num_layers,
+            dropout,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Compute raw logits for a batch of flattened windows.
+
+        Args:
+            x: Tensor of shape ``[batch, seq_len * num_features]``.
+
+        Returns:
+            Tensor of shape ``[batch, 1]`` containing logits.
+        """
+        x = x.view(-1, self.seq_len, self.num_features)
+        out, _ = self.gru(x)
+        last = self.head_dropout(out[:, -1, :])
+        return self.fc(last)

@@ -167,9 +167,45 @@ Claude, tu objetivo en esta fase es implementar el pipeline de datos, la arquite
 
 ---
 
+## ✅ Fase 5: Comparativa GRU vs MLP (Completada por Claude Opus 4.7)
+
+### Qué se ha construido (todos cambios aditivos — la rama MLP queda intacta):
+1. **[src/model.py](file:///Users/daldo/VsCode/Tech/src/model.py) — `AnomalyDetectorGRU`**: nueva clase junto al MLP. `nn.GRU(input_size=num_features, hidden_size, num_layers, batch_first=True)` + `nn.Dropout` post-GRU (porque PyTorch solo aplica `dropout=` entre capas cuando `num_layers > 1`) + `nn.Linear(hidden_size, 1)`. El `forward` reshape `[B, 20] → [B, 5, 4]` con `x.view(-1, 5, 4)`, válido porque `ServidorDataset` aplana row-major en orden cronológico.
+2. **[src/train_gru.py](file:///Users/daldo/VsCode/Tech/src/train_gru.py)**: script ejecutable que importa los helpers (`EarlyStopping`, `train_one_epoch`, `evaluate`, `plot_curves`, `set_seed`, `get_device`) desde `src/train.py` para evitar duplicación silente. Guarda `best_model_gru.pth` (con `model_type="gru"` + dims) y `training_curves_gru.png`.
+3. **[src/evaluate.py](file:///Users/daldo/VsCode/Tech/src/evaluate.py) — `--model-type`**: el flag despacha sobre el campo `model_type` del checkpoint (fallback `"mlp"` por retrocompatibilidad). Reconstruye la clase adecuada con la metadata guardada.
+4. **[tests/test_model.py](file:///Users/daldo/VsCode/Tech/tests/test_model.py)**: 6 tests nuevos — `test_gru_io_shapes` (parametrizado B∈{1,8,32,128}), `test_gru_reshape_recovers_chronology` (forward hook que captura el tensor que entra a la GRU y verifica el orden cronológico contra el original), `test_gru_rejects_invalid_hyperparameters`. Total: **15/15 verdes en 2.8 s**.
+
+### Mini-sweep de hiperparámetros GRU (10 configs)
+Hallazgos:
+* **`lr=3e-3` (óptimo del MLP) es demasiado alto para GRU** — `lr=1e-3` produce mejores resultados.
+* **Stacked GRU (`num_layers=2`) no aporta** — `seq_len=5` es demasiado corto para beneficiarse de profundidad recurrente.
+* **`hidden_size=64` óptimo** — más capacidad (128) overfittea; menos (32) underfittea.
+* Mejor config: `hidden=64, num_layers=1, dropout=0.2, lr=1e-3, batch=64, pos_weight_scale=0.25, threshold=0.613`.
+
+### Resultados Finales sobre el Test Split (1496 ventanas, 100 positivos):
+
+| Métrica | MLP | **GRU** | Δ |
+|---|---|---|---|
+| Test F1 | **0.8384** | 0.8155 | −0.023 |
+| Test Precision | **0.8469** | 0.7925 | −0.054 |
+| Test Recall | 0.8300 | **0.8400** | +0.010 |
+| Test Accuracy | **0.9786** | 0.9746 | −0.004 |
+| Parámetros | ~3,520 | 13,505 | ×3.8 |
+| TN / FP | 1381 / 15 | 1374 / 22 | +7 FP |
+| FN / TP | 17 / 83 | **16 / 84** | −1 FN |
+
+### Conclusión técnica
+**El MLP gana en F1 en este escenario** porque la secuencia es muy corta (`seq_len=5`) y las dinámicas físicas del simulador (inercia térmica, AR-1 de carga) están lo suficientemente concentradas en pocos pasos como para que el MLP plano las capture igual de bien que un recurrente. La ventaja de la GRU (recall ligeramente mejor: 1 fallo más detectado) se ve más que compensada por el aumento de falsos positivos (+7 FP). Lección: **el sesgo inductivo recurrente exige sequence lengths mayores (decenas de pasos) para materializarse**; con ventanas cortas el MLP es preferible por su simplicidad y menor coste.
+
+### Artefactos
+* `best_model_gru.pth`, `training_curves_gru.png`, `test_confusion_matrix_gru.png`.
+* **MLP intacto**: `best_model.pth` sigue reproduciendo `test_f1=0.8384` exactamente igual (regresión cero verificada).
+
+---
+
 ## 🚀 Próximos Pasos (Propuesta de Producción)
-1. **Modelado Secuencial Avanzado:** Para superar el techo del F1-Score actual (0.85), se propone implementar modelos recurrentes nativos como **LSTM / GRU** o redes convolucionales **1D-CNN**, lo cual evitaría aplanar la ventana deslizante y explotaría de forma nativa la continuidad secuencial de la telemetría.
-2. **Despliegue RAG / LLM:** La potente GPU RTX 4070S remota y el servicio de Ollama en red se sugieren como infraestructura ideal para desplegar el chatbot de consulta sobre manuales técnicos del servidor, reduciendo costes y latencia en local.
+1. **Sequences más largas:** Si se amplía el modelo de fallo a depender de ventanas más largas (30-60 min de telemetría), reabrir la comparación con GRU/LSTM/Conv1D — es donde el sesgo recurrente debería superar al MLP.
+2. **Despliegue RAG / LLM:** La GPU RTX 4070S remota y el servicio de Ollama en red se sugieren como infraestructura ideal para desplegar el chatbot de consulta sobre manuales técnicos del servidor, reduciendo costes y latencia en local.
 
 
 ---

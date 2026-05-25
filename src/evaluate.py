@@ -32,6 +32,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
+from torch import nn
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -41,7 +42,7 @@ from sklearn.metrics import (
 from torch.utils.data import DataLoader
 
 from src.dataset import build_dataloaders
-from src.model import AnomalyDetectorMLP
+from src.model import AnomalyDetectorGRU, AnomalyDetectorMLP
 from src.train import get_device
 
 logger = logging.getLogger(__name__)
@@ -54,13 +55,21 @@ DEFAULT_CM_PATH: Path = PROJECT_ROOT / "test_confusion_matrix.png"
 
 
 def load_checkpoint(
-    path: Path, device: torch.device
-) -> tuple[AnomalyDetectorMLP, dict]:
-    """Load the trained model and its metadata from a checkpoint file.
+    path: Path, device: torch.device, model_type: str | None = None
+) -> tuple[nn.Module, dict]:
+    """Load a trained model and its metadata from a checkpoint file.
+
+    Dispatches on the ``model_type`` field stored in the checkpoint
+    (``"mlp"`` or ``"gru"``). When the field is missing, falls back to
+    ``"mlp"`` so checkpoints produced before the GRU work keep loading
+    unchanged. The caller may override the inferred type via
+    ``model_type``.
 
     Args:
-        path: Path to ``best_model.pth``.
+        path: Path to the checkpoint file.
         device: Torch device where the model will be placed.
+        model_type: Optional override (``"mlp"`` or ``"gru"``). If
+            ``None`` the value stored in the checkpoint is used.
 
     Returns:
         Tuple ``(model_eval_mode, checkpoint_dict)``.
@@ -68,29 +77,58 @@ def load_checkpoint(
     Raises:
         FileNotFoundError: If ``path`` does not exist.
         KeyError: If the checkpoint lacks the expected metadata keys.
+        ValueError: If ``model_type`` is not one of ``"mlp"`` / ``"gru"``.
     """
     if not path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {path}")
 
     ckpt = torch.load(path, map_location=device, weights_only=False)
-    required_keys = {"model_state_dict", "input_dim", "hidden_dims", "dropout"}
-    missing = required_keys - set(ckpt.keys())
-    if missing:
-        raise KeyError(f"Checkpoint missing keys: {sorted(missing)}")
+    resolved_type = (model_type or ckpt.get("model_type") or "mlp").lower()
 
-    model = AnomalyDetectorMLP(
-        input_dim=int(ckpt["input_dim"]),
-        hidden_dims=tuple(ckpt["hidden_dims"]),
-        dropout=float(ckpt["dropout"]),
-    ).to(device)
+    model: nn.Module
+    if resolved_type == "mlp":
+        required = {"model_state_dict", "input_dim", "hidden_dims", "dropout"}
+        missing = required - set(ckpt.keys())
+        if missing:
+            raise KeyError(f"MLP checkpoint missing keys: {sorted(missing)}")
+        model = AnomalyDetectorMLP(
+            input_dim=int(ckpt["input_dim"]),
+            hidden_dims=tuple(ckpt["hidden_dims"]),
+            dropout=float(ckpt["dropout"]),
+        ).to(device)
+    elif resolved_type == "gru":
+        required = {
+            "model_state_dict",
+            "num_features",
+            "seq_len",
+            "hidden_size",
+            "num_layers",
+            "dropout",
+        }
+        missing = required - set(ckpt.keys())
+        if missing:
+            raise KeyError(f"GRU checkpoint missing keys: {sorted(missing)}")
+        model = AnomalyDetectorGRU(
+            num_features=int(ckpt["num_features"]),
+            seq_len=int(ckpt["seq_len"]),
+            hidden_size=int(ckpt["hidden_size"]),
+            num_layers=int(ckpt["num_layers"]),
+            dropout=float(ckpt["dropout"]),
+        ).to(device)
+    else:
+        raise ValueError(
+            f"Unsupported model_type {resolved_type!r}; expected 'mlp' or 'gru'"
+        )
+
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
+    ckpt.setdefault("model_type", resolved_type)
     return model, ckpt
 
 
 @torch.no_grad()
 def predict(
-    model: AnomalyDetectorMLP,
+    model: nn.Module,
     loader: DataLoader,
     device: torch.device,
     threshold: float,
@@ -168,6 +206,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT_PATH)
     parser.add_argument("--cm-path", type=Path, default=DEFAULT_CM_PATH)
     parser.add_argument(
+        "--model-type",
+        type=str,
+        default=None,
+        choices=["mlp", "gru"],
+        help="Override checkpoint's model type. Defaults to the value stored "
+        "in the checkpoint (or 'mlp' if absent).",
+    )
+    parser.add_argument(
         "--threshold",
         type=float,
         default=None,
@@ -194,27 +240,41 @@ def main() -> None:
     device = get_device()
     logger.info("Evaluation device: %s", device)
 
-    model, ckpt = load_checkpoint(args.checkpoint, device)
+    model, ckpt = load_checkpoint(args.checkpoint, device, model_type=args.model_type)
     threshold = (
         args.threshold
         if args.threshold is not None
         else float(ckpt.get("decision_threshold", 0.5))
     )
+
+    model_type = ckpt["model_type"]
+    if model_type == "mlp":
+        arch_summary = (
+            f"input_dim={int(ckpt['input_dim'])} "
+            f"hidden_dims={tuple(ckpt['hidden_dims'])}"
+        )
+    else:
+        arch_summary = (
+            f"num_features={int(ckpt['num_features'])} "
+            f"seq_len={int(ckpt['seq_len'])} "
+            f"hidden_size={int(ckpt['hidden_size'])} "
+            f"num_layers={int(ckpt['num_layers'])}"
+        )
     logger.info(
-        "Loaded checkpoint: input_dim=%d hidden_dims=%s dropout=%.2f "
-        "best_val_f1=%.4f decision_threshold=%.3f",
-        int(ckpt["input_dim"]),
-        tuple(ckpt["hidden_dims"]),
+        "Loaded %s checkpoint: %s dropout=%.2f best_val_f1=%.4f decision_threshold=%.3f",
+        model_type.upper(),
+        arch_summary,
         float(ckpt["dropout"]),
         float(ckpt.get("best_val_f1", float("nan"))),
         threshold,
     )
 
+    window_size = int(ckpt.get("window_size") or ckpt.get("seq_len") or 5)
     _train_loader, _val_loader, test_loader, meta = build_dataloaders(
         csv_path=args.csv_path,
         scaler_path=args.scaler_path,
         batch_size=args.batch_size,
-        window_size=int(ckpt.get("window_size", 5)),
+        window_size=window_size,
         num_workers=0,
     )
     logger.info(

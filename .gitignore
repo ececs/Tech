@@ -25,6 +25,7 @@ best_model.pth
 
 # Visualizaciones y outputs locales
 training_curves.png
+training_curves_gru.png
 temp_data.txt
 results/
 *.jsonl

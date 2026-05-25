@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+from torch import nn
 from sklearn.preprocessing import MinMaxScaler
 
 from src.dataset import (
@@ -28,7 +29,7 @@ from src.dataset import (
     fit_scaler,
     temporal_split,
 )
-from src.model import AnomalyDetectorMLP
+from src.model import AnomalyDetectorGRU, AnomalyDetectorMLP
 
 
 @pytest.mark.parametrize("batch_size", [1, 8, 32, 128])
@@ -52,6 +53,77 @@ def test_model_rejects_wrong_input_dim() -> None:
     model.eval()
     with pytest.raises(RuntimeError):
         model(torch.randn(4, 19))
+
+
+@pytest.mark.parametrize("batch_size", [1, 8, 32, 128])
+def test_gru_io_shapes(batch_size: int) -> None:
+    """``AnomalyDetectorGRU`` maps ``[B, seq_len*num_features]`` to ``[B, 1]``."""
+    model = AnomalyDetectorGRU(
+        num_features=4, seq_len=5, hidden_size=32, num_layers=1, dropout=0.3
+    )
+    model.eval()
+
+    x = torch.randn(batch_size, 20)
+    with torch.no_grad():
+        y = model(x)
+
+    assert y.shape == (batch_size, 1), f"Expected ({batch_size}, 1), got {tuple(y.shape)}"
+    assert y.dtype == torch.float32
+    assert torch.isfinite(y).all(), "GRU produced non-finite logits"
+
+
+def test_gru_reshape_recovers_chronology() -> None:
+    """The flatten -> view round-trip must preserve the sequence layout.
+
+    We feed a deterministic 3D tensor ``[B, 5, 4]`` after flattening it
+    row-major (exactly as :class:`ServidorDataset` does at index time).
+    A forward hook on the GRU layer captures the tensor it actually
+    receives; that tensor must match the original 3D input element-wise.
+    """
+    batch_size = 3
+    seq_len = 5
+    num_features = 4
+
+    original_3d = torch.arange(
+        batch_size * seq_len * num_features, dtype=torch.float32
+    ).reshape(batch_size, seq_len, num_features)
+
+    # Same memory layout used by ServidorDataset.__getitem__.
+    flattened = original_3d.reshape(batch_size, -1)
+
+    model = AnomalyDetectorGRU(
+        num_features=num_features,
+        seq_len=seq_len,
+        hidden_size=8,
+        num_layers=1,
+        dropout=0.0,
+    )
+    model.eval()
+
+    captured: list[torch.Tensor] = []
+
+    def _hook(_module: nn.Module, inputs: tuple, _output: object) -> None:
+        captured.append(inputs[0].detach().clone())
+
+    handle = model.gru.register_forward_hook(_hook)
+    try:
+        with torch.no_grad():
+            model(flattened)
+    finally:
+        handle.remove()
+
+    assert len(captured) == 1
+    seen_by_gru = captured[0]
+    assert seen_by_gru.shape == original_3d.shape
+    torch.testing.assert_close(seen_by_gru, original_3d, rtol=0, atol=0)
+
+
+def test_gru_rejects_invalid_hyperparameters() -> None:
+    """Constructor must reject non-positive sizes."""
+    with pytest.raises(ValueError):
+        AnomalyDetectorGRU(num_features=0)
+    with pytest.raises(ValueError):
+        AnomalyDetectorGRU(hidden_size=-1)
 
 
 def _synthetic_frame(num_rows: int = 50) -> pd.DataFrame:
