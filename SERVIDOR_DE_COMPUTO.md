@@ -57,7 +57,7 @@ Este es el estándar profesional. Trabajarás en la ventana de VS Code de tu Mac
 ### Paso 2: Conectar desde el MacBook Air
 1. Instala la extensión **"Remote - SSH"** (de Microsoft) en el VS Code de tu Mac.
 2. Haz clic en el botón verde de la esquina inferior izquierda de VS Code (`><`) y selecciona **Connect to Host... > Add New SSH Host**.
-3. Escribe el comando de conexión: `ssh usuario_del_pc@IP_DEL_PC` (ej. `ssh eudaldo@192.168.1.50`).
+3. Escribe el comando de conexión: `ssh usuario_del_pc@IP_DEL_PC` (ej. `ssh devuser@192.168.1.50`).
 4. Introduce la contraseña del PC cuando la solicite.
 5. ¡Listo! Abre la carpeta de tu proyecto en el PC desde esa misma ventana. La terminal integrada de VS Code ejecutará todo directamente en el PC usando CUDA.
 

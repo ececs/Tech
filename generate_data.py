@@ -12,6 +12,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 import logging
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Dict, Any
 import numpy as np
 import pandas as pd
@@ -136,7 +137,7 @@ def simulate_server_telemetry(
 
 
 if __name__ == "__main__":
-    output_path = "/Users/daldo/VsCode/Tech/dataset_servidores.csv"
+    output_path = Path(__file__).resolve().parent / "dataset_servidores.csv"
     try:
         df_telemetry = simulate_server_telemetry(num_records=10000, seed=42)
         

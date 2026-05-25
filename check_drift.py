@@ -7,15 +7,19 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import logging
+from pathlib import Path
 import pandas as pd
 import numpy as np
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 
-def analyze_splits(df_path: str = "/Users/daldo/VsCode/Tech/dataset_servidores.csv") -> None:
+def analyze_splits(df_path: str | None = None) -> None:
     """Divide el dataset secuencialmente en 70/15/15 y compara las estadísticas descriptivas."""
+    if df_path is None:
+        df_path = str(PROJECT_ROOT / "dataset_servidores.csv")
     if not os.path.exists(df_path):
         raise FileNotFoundError(f"No se encontró el dataset en {df_path}")
         

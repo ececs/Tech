@@ -31,7 +31,7 @@ Este documento contiene la estructura detallada paso a paso y el guion narrativo
 ---
 
 ### 📊 Sección 2: Simulación de Sensores y EDA (1:30 - 3:30)
-* **Acción Visual:** Abre en VS Code [generate_data.py](file:///Users/daldo/VsCode/Tech/generate_data.py) y muestra los gráficos `distribucion_variables_fallo.png` y `matriz_correlacion.png`.
+* **Acción Visual:** Abre en VS Code `generate_data.py` y muestra los gráficos `distribucion_variables_fallo.png` y `matriz_correlacion.png`.
 * **Qué decir:**
   > *"Un aspecto crucial al trabajar con datos sintéticos es que tengan coherencia física. Si generamos ruido puramente aleatorio, el modelo no aprenderá relaciones reales de causa-efecto.*
   >
@@ -44,7 +44,7 @@ Este documento contiene la estructura detallada paso a paso y el guion narrativo
 ---
 
 ### 📋 Sección 3: Pipeline de Datos y Ventana Causal (3:30 - 5:00)
-* **Acción Visual:** Muestra en pantalla el archivo [src/dataset.py](file:///Users/daldo/VsCode/Tech/src/dataset.py).
+* **Acción Visual:** Muestra en pantalla el archivo `src/dataset.py`.
 * **Qué decir:**
   > *"Para procesar los datos de forma robusta, he estructurado el código en `src/dataset.py`. Aquí he tomado tres decisiones críticas de diseño:*
   >
@@ -57,7 +57,7 @@ Este documento contiene la estructura detallada paso a paso y el guion narrativo
 ---
 
 ### 🧠 Sección 4: Arquitectura MLP de PyTorch (5:00 - 6:30)
-* **Acción Visual:** Abre [src/model.py](file:///Users/daldo/VsCode/Tech/src/model.py) y [src/train.py](file:///Users/daldo/VsCode/Tech/src/train.py).
+* **Acción Visual:** Abre `src/model.py` y `src/train.py`.
 * **Qué decir:**
   > *"Para la red neuronal, en `src/model.py` he diseñado un Multi-Layer Perceptron (MLP) denso en PyTorch. La entrada de 20 variables pasa por dos capas ocultas de 64 y 32 neuronas, aplicando normalización por lotes (`BatchNorm1d`), funciones de activación `ReLU` y regularización `Dropout(0.3)` para evitar el sobreentrenamiento.*
   >
@@ -68,7 +68,7 @@ Este documento contiene la estructura detallada paso a paso y el guion narrativo
 ---
 
 ### 🏋️ Sección 5: Sweep de Hiperparámetros & Cuello de Botella I/O (6:30 - 8:30)
-* **Acción Visual:** Muestra [src/sweep.py](file:///Users/daldo/VsCode/Tech/src/sweep.py) y abre el gráfico `training_curves.png`.
+* **Acción Visual:** Muestra `src/sweep.py` y abre el gráfico `training_curves.png`.
 * **Qué decir:**
   > *"Diseñamos un script de barrido exhaustivo en `src/sweep.py` que evaluó **162 combinaciones** de hiperparámetros. Durante el sweep, calibramos dinámicamente el umbral de decisión sobre la curva Precision-Recall para maximizar el F1-Score en validación, en lugar de usar un umbral de 0.5.*
   >

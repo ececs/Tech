@@ -9,15 +9,22 @@ This repository contains the complete implementation of a Deep Learning system i
 The system follows a modular, production-ready machine learning pipeline:
 
 ```text
-/Users/daldo/VsCode/Tech/
+Tech/
 ├── src/
-│   ├── dataset.py     # Temporal train/val/test split, MinMaxScaler fitting & sliding window
-│   ├── model.py       # Custom PyTorch MLP Architecture (20 -> 64 -> 32 -> 1)
-│   ├── train.py       # Training loop with class-weighted loss and Early Stopping on F1
-│   ├── evaluate.py    # Test evaluation, precision-recall curve & confusion matrix
+│   ├── dataset.py     # Temporal split, scaler persistence/reuse, sliding windows & dataloaders
+│   ├── app.py         # FastAPI dashboard for snapshot, CSV batch inference and RAG chat
+│   ├── inference_service.py # Shared snapshot/batch inference logic and session helpers
+│   ├── rag_service.py # Shared RAG runtime for CLI and FastAPI chat
+│   ├── model.py       # MLP and GRU classifiers with defensive hyperparameter validation
+│   ├── train.py       # MLP training loop with class-weighted loss and Early Stopping on F1
+│   ├── train_gru.py   # GRU training entry point sharing the same training/eval machinery
+│   ├── templates/     # Jinja2 frontend for the local dashboard
+│   ├── training_common.py # Shared loop utilities for MLP/GRU training
+│   ├── evaluate.py    # Checkpoint loading, persisted-scaler inference & confusion matrix
 │   └── sweep.py       # Exhaustive hyperparameter grid search with threshold tuning
 ├── tests/
-│   └── test_model.py  # Automation unit tests with pytest (9/9 green)
+│   ├── test_model.py  # Unit + integration tests for model, data pipeline and CLI artefacts
+│   └── test_app.py    # FastAPI health/predict tests
 ├── generate_data.py   # Physics-based synthetic data generator
 └── README.md          # Technical documentation
 ```
@@ -41,7 +48,7 @@ To evaluate the system, we simulate **10,000 sequential records** of server sens
 ## 📋 2. Data Pipeline & Sliding Window (`src/dataset.py`)
 
 * **Temporal Split:** To prevent *look-ahead bias* (data leakage), the sequential dataset is split chronologically into **70% Train (7,000 rows)**, **15% Validation (1,500 rows)**, and **15% Test (1,500 rows)**. No random shuffling is performed prior to splitting.
-* **Feature Scaling:** A `MinMaxScaler` is fitted **only on the training split** and persisted as `artifacts/scaler.joblib`. The validation and test splits are transformed using the fitted parameters, preventing information leakage.
+* **Feature Scaling:** A `MinMaxScaler` is fitted **only on the training split** and persisted as `artifacts/scaler.joblib`. Evaluation and inference reload that persisted scaler instead of silently refitting a new one, preserving consistency between training and offline validation.
 * **Sliding Window:** Because system failures depend on a cumulative 3-step thermal overload, the pipeline groups the last 5 time-steps $[t-4, t-3, t-2, t-1, t]$ to predict the state at time $t$. The final input tensor for each sample is flattened into **20 dimensions** ($5 \text{ steps} \times 4 \text{ features}$).
 
 ---
@@ -54,6 +61,7 @@ The deep learning model is an optimized Multi-Layer Perceptron (MLP) implemented
 * **Hidden Layer 2:** 32 neurons $\rightarrow$ `BatchNorm1d` $\rightarrow$ `ReLU` $\rightarrow$ `Dropout(0.3)`.
 * **Output Layer:** 1 neuron returning raw **logits** (no sigmoid applied at the output).
 * **Loss Function:** `BCEWithLogitsLoss` is used for numerical stability. Class imbalance is handled by setting `pos_weight` dynamically from the train split counts ($\text{pos\_weight} \approx 18.82$ raw, scaled by $0.25$ to an effective value of $4.70$ after the grid search).
+* **Defensive Validation:** Invalid dimensions or dropout values are rejected at construction time to fail fast on bad experiment configurations.
 
 ---
 
@@ -98,7 +106,7 @@ The sweep optimized the model by scanning the precision-recall curve on the vali
   
   The marginal difference between validation ($0.854$) and test ($0.838$) metrics confirms that the model generalizes robustly and does not suffer from overfitting.
 * **Confusion Matrix:** The resulting confusion matrix (`test_confusion_matrix.png`) shows an outstanding balance, capturing almost all thermal failures while keeping false alarms to a minimum.
-* **Unit Testing:** A suite of 9 tests is implemented in `tests/test_model.py` and run via `pytest`. The tests verify the model I/O tensor shapes (parametrized over batch sizes 1, 8, 32, 128), rejection of inputs with the wrong feature dimension, causal sliding-window construction, MinMax feature scaling into `[0, 1]`, sequential ordering of the temporal split, and that the scaler is fit on training rows only.
+* **Testing:** A suite of 21 tests is implemented in `tests/test_model.py` and run via `pytest`. It now covers model I/O shapes, invalid hyperparameter rejection, causal sliding-window construction, sequential temporal splitting, scaler fit isolation, persisted-scaler reuse during inference, and a short end-to-end CLI run that trains, saves, reloads and evaluates a checkpoint.
 
 ---
 
@@ -117,6 +125,8 @@ source .venv/bin/activate  # On macOS/Linux
 # Install dependencies
 pip install -r requirements.txt
 ```
+
+Optional shortcuts for the full demo are available in [Makefile](Makefile).
 
 ### 2. Generate the Dataset
 Create the synthetic telemetry data with the physical sensors logic:
@@ -137,6 +147,7 @@ python -m src.train \
     --epochs 50 \
     --patience 7 \
     --batch-size 64 \
+    --hidden-dims 64 32 \
     --lr 3e-3 \
     --dropout 0.2 \
     --pos-weight-scale 0.25 \
@@ -149,8 +160,61 @@ Generate final metrics and the confusion matrix (the threshold is read from the 
 python -m src.evaluate --checkpoint best_model.pth
 ```
 
-### 6. Run Unit Tests
-Run the pytest suite to verify model dimensions and data pipeline:
+### 6. Run the Local FastAPI Demo
+Start the dashboard once `best_model.pth` and `artifacts/scaler.joblib` exist:
 ```bash
-pytest tests/
+uvicorn src.app:app --reload
 ```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The dashboard now includes:
+
+* **Snapshot inference** with 4 sliders. The UI repeats the same reading 5 times to satisfy the model's temporal window. It is intentionally labelled as approximate.
+* **Batch CSV upload** for files containing `timestamp`, `cpu_usage`, `mem_usage`, `network_traffic`, `cpu_temp`.
+* **Temporal chart** with CPU temperature, CPU usage and red anomaly markers using Chart.js.
+* **CSV download** of analyzed results, including `probability` and `prediction`.
+* **Integrated documentation chat** backed by the local FAISS index and Ollama-based RAG pipeline.
+
+Batch mode reuses the trained scaler. If uploaded values fall outside the scaler's learned range, inputs are clipped to `[0, 1]` and the UI shows a warning.
+
+The dashboard will be available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+## Docker Delivery
+
+If you want evaluators to run the app in a more reproducible way, you can also ship it with Docker:
+
+```bash
+docker compose up --build
+```
+
+or:
+
+```bash
+make docker-run
+```
+
+Important: the web app still needs the trained artefacts to exist inside the delivery bundle:
+
+* `best_model.pth`
+* `artifacts/scaler.joblib`
+
+If you do **not** include those artefacts, the reviewer must generate them first with training commands before opening the web demo.
+
+### 7. Run Tests
+Run the pytest suite to verify model dimensions, data pipeline and FastAPI endpoints:
+```bash
+uv run pytest tests/
+```
+
+## Demo Shortcuts
+
+```bash
+make test
+make evaluate
+make app
+make rag
+make docker-build
+make docker-run
+```
+
+For a presentation-oriented walkthrough, use [DEMO_CHECKLIST.md](DEMO_CHECKLIST.md).
+For interview prep, use [INTERVIEW_GUIDE.md](INTERVIEW_GUIDE.md).

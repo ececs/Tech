@@ -7,6 +7,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import logging
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -20,10 +21,13 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 
-def run_eda(df_path: str = "/Users/daldo/VsCode/Tech/dataset_servidores.csv") -> None:
+def run_eda(df_path: str | None = None) -> None:
     """Ejecuta el EDA y guarda las gráficas en disco."""
+    if df_path is None:
+        df_path = str(PROJECT_ROOT / "dataset_servidores.csv")
     if not os.path.exists(df_path):
         raise FileNotFoundError(f"No se encontró el dataset en: {df_path}")
 
@@ -44,7 +48,7 @@ def run_eda(df_path: str = "/Users/daldo/VsCode/Tech/dataset_servidores.csv") ->
     plt.xlabel('Fallo (0 = Normal, 1 = Fallo)')
     plt.ylabel('Cantidad de Registros')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.savefig('/Users/daldo/VsCode/Tech/distribution_clases.png', bbox_inches='tight')
+    plt.savefig(PROJECT_ROOT / 'distribution_clases.png', bbox_inches='tight')
     plt.close()
 
     # 2. Matriz de correlación
@@ -55,7 +59,7 @@ def run_eda(df_path: str = "/Users/daldo/VsCode/Tech/dataset_servidores.csv") ->
     plt.figure(figsize=(8, 6))
     sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', linewidths=0.5)
     plt.title('Matriz de Correlación de Pearson')
-    plt.savefig('/Users/daldo/VsCode/Tech/matriz_correlacion.png', bbox_inches='tight')
+    plt.savefig(PROJECT_ROOT / 'matriz_correlacion.png', bbox_inches='tight')
     plt.close()
 
     # 3. Distribución de variables por clase de fallo
@@ -74,7 +78,7 @@ def run_eda(df_path: str = "/Users/daldo/VsCode/Tech/dataset_servidores.csv") ->
     axes[1].set_xlabel('Estado (0 = Normal, 1 = Fallo)')
     axes[1].set_ylabel('Uso Memoria (%)')
 
-    plt.savefig('/Users/daldo/VsCode/Tech/distribucion_variables_fallo.png', bbox_inches='tight')
+    plt.savefig(PROJECT_ROOT / 'distribucion_variables_fallo.png', bbox_inches='tight')
     plt.close()
     
     logger.info("EDA completado y gráficos guardados con éxito.")
