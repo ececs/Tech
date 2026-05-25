@@ -18,25 +18,20 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 import argparse
-import copy
 import logging
-import random
-from dataclasses import dataclass, field
 from pathlib import Path
-
-import matplotlib
-
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
-from sklearn.metrics import precision_recall_fscore_support
 from torch import nn
-from torch.utils.data import DataLoader
 
-from src.dataset import build_dataloaders
+from src.dataset import build_training_dataloaders
 from src.model import AnomalyDetectorMLP
+from src.training_common import (
+    TrainLoopConfig,
+    get_device,
+    plot_curves,
+    run_training_loop,
+    set_seed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,170 +40,6 @@ DEFAULT_CSV_PATH: Path = PROJECT_ROOT / "dataset_servidores.csv"
 DEFAULT_SCALER_PATH: Path = PROJECT_ROOT / "artifacts" / "scaler.joblib"
 DEFAULT_MODEL_PATH: Path = PROJECT_ROOT / "best_model.pth"
 DEFAULT_CURVES_PATH: Path = PROJECT_ROOT / "training_curves.png"
-
-
-@dataclass
-class EpochMetrics:
-    """Container for per-epoch metrics."""
-
-    train_loss: list[float] = field(default_factory=list)
-    val_loss: list[float] = field(default_factory=list)
-    val_f1: list[float] = field(default_factory=list)
-    val_precision: list[float] = field(default_factory=list)
-    val_recall: list[float] = field(default_factory=list)
-
-
-class EarlyStopping:
-    """Early stopping that maximizes validation F1-score.
-
-    Args:
-        patience: Epochs to wait without improvement before stopping.
-        min_delta: Minimum F1 increment considered as improvement.
-    """
-
-    def __init__(self, patience: int = 5, min_delta: float = 1e-4) -> None:
-        self.patience = patience
-        self.min_delta = min_delta
-        self.best_score: float = -float("inf")
-        self.counter: int = 0
-        self.should_stop: bool = False
-        self.best_state: dict | None = None
-
-    def step(self, score: float, model: nn.Module) -> bool:
-        """Update best score and return ``True`` when a new best is found.
-
-        Args:
-            score: Current epoch validation F1.
-            model: Model whose state will be snapshot on improvement.
-
-        Returns:
-            ``True`` if ``score`` is a new best, ``False`` otherwise.
-        """
-        improved = score > self.best_score + self.min_delta
-        if improved:
-            self.best_score = score
-            self.counter = 0
-            self.best_state = copy.deepcopy(model.state_dict())
-        else:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.should_stop = True
-        return improved
-
-
-def set_seed(seed: int) -> None:
-    """Seed Python, NumPy and PyTorch RNGs for reproducibility."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-
-def get_device() -> torch.device:
-    """Select MPS, then CUDA, then CPU."""
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
-
-
-def train_one_epoch(
-    model: nn.Module,
-    loader: DataLoader,
-    criterion: nn.Module,
-    optimizer: torch.optim.Optimizer,
-    device: torch.device,
-) -> float:
-    """Run a single training epoch and return the mean batch loss."""
-    model.train()
-    running_loss = 0.0
-    running_count = 0
-    for inputs, targets in loader:
-        inputs = inputs.to(device)
-        targets = targets.to(device)
-        optimizer.zero_grad(set_to_none=True)
-        logits = model(inputs)
-        loss = criterion(logits, targets)
-        loss.backward()
-        optimizer.step()
-        batch_size = inputs.size(0)
-        running_loss += loss.item() * batch_size
-        running_count += batch_size
-    return running_loss / max(running_count, 1)
-
-
-@torch.no_grad()
-def evaluate(
-    model: nn.Module,
-    loader: DataLoader,
-    criterion: nn.Module,
-    device: torch.device,
-    threshold: float = 0.5,
-) -> tuple[float, float, float, float]:
-    """Evaluate the model and return ``(loss, f1, precision, recall)``."""
-    model.eval()
-    running_loss = 0.0
-    running_count = 0
-    all_preds: list[np.ndarray] = []
-    all_targets: list[np.ndarray] = []
-    for inputs, targets in loader:
-        inputs = inputs.to(device)
-        targets_dev = targets.to(device)
-        logits = model(inputs)
-        loss = criterion(logits, targets_dev)
-        batch_size = inputs.size(0)
-        running_loss += loss.item() * batch_size
-        running_count += batch_size
-        probs = torch.sigmoid(logits)
-        preds = (probs > threshold).float().cpu().numpy().reshape(-1)
-        all_preds.append(preds)
-        all_targets.append(targets.numpy().reshape(-1))
-
-    y_pred = np.concatenate(all_preds) if all_preds else np.zeros(0)
-    y_true = np.concatenate(all_targets) if all_targets else np.zeros(0)
-    precision, recall, f1, _ = precision_recall_fscore_support(
-        y_true,
-        y_pred,
-        average="binary",
-        zero_division=0.0,
-    )
-    return running_loss / max(running_count, 1), float(f1), float(precision), float(recall)
-
-
-def plot_curves(history: EpochMetrics, out_path: Path) -> None:
-    """Save a two-panel figure with loss and F1 curves."""
-    epochs = range(1, len(history.train_loss) + 1)
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
-
-    axes[0].plot(epochs, history.train_loss, label="train", marker="o")
-    axes[0].plot(epochs, history.val_loss, label="val", marker="s")
-    axes[0].set_title("Loss (BCEWithLogits)")
-    axes[0].set_xlabel("Epoch")
-    axes[0].set_ylabel("Loss")
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend()
-
-    axes[1].plot(epochs, history.val_f1, label="val F1", marker="o", color="tab:green")
-    axes[1].plot(
-        epochs, history.val_precision, label="val precision", marker="^", color="tab:orange"
-    )
-    axes[1].plot(
-        epochs, history.val_recall, label="val recall", marker="v", color="tab:red"
-    )
-    axes[1].set_title("Validation metrics")
-    axes[1].set_xlabel("Epoch")
-    axes[1].set_ylabel("Score")
-    axes[1].set_ylim(0.0, 1.05)
-    axes[1].grid(True, alpha=0.3)
-    axes[1].legend()
-
-    fig.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=120)
-    plt.close(fig)
-    logger.info("Saved training curves to %s", out_path)
 
 
 def parse_args() -> argparse.Namespace:
@@ -220,6 +51,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--curves-path", type=Path, default=DEFAULT_CURVES_PATH)
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument(
+        "--hidden-dims",
+        type=int,
+        nargs=2,
+        metavar=("H1", "H2"),
+        default=(64, 32),
+        help="Two hidden-layer sizes for the MLP architecture",
+    )
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--dropout", type=float, default=0.3)
@@ -247,6 +86,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def validate_args(args: argparse.Namespace) -> None:
+    """Fail fast on invalid CLI argument combinations."""
+    if args.epochs <= 0:
+        raise ValueError(f"--epochs must be > 0, got {args.epochs}")
+    if args.batch_size <= 0:
+        raise ValueError(f"--batch-size must be > 0, got {args.batch_size}")
+    if any(dim <= 0 for dim in args.hidden_dims):
+        raise ValueError(f"--hidden-dims must contain positive ints, got {args.hidden_dims}")
+    if args.lr <= 0:
+        raise ValueError(f"--lr must be > 0, got {args.lr}")
+    if args.weight_decay < 0:
+        raise ValueError(f"--weight-decay must be >= 0, got {args.weight_decay}")
+    if not 0.0 <= args.dropout < 1.0:
+        raise ValueError(f"--dropout must be in [0, 1), got {args.dropout}")
+    if args.pos_weight_scale <= 0:
+        raise ValueError(
+            f"--pos-weight-scale must be > 0, got {args.pos_weight_scale}"
+        )
+    if not 0.0 <= args.decision_threshold <= 1.0:
+        raise ValueError(
+            "--decision-threshold must be in [0, 1], "
+            f"got {args.decision_threshold}"
+        )
+    if args.patience <= 0:
+        raise ValueError(f"--patience must be > 0, got {args.patience}")
+    if args.num_workers < 0:
+        raise ValueError(f"--num-workers must be >= 0, got {args.num_workers}")
+
+
 def main() -> None:
     """Run the full training pipeline."""
     args = parse_args()
@@ -254,12 +122,13 @@ def main() -> None:
         level=getattr(logging, args.log_level),
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
     )
+    validate_args(args)
     set_seed(args.seed)
 
     device = get_device()
     logger.info("Using device: %s", device)
 
-    train_loader, val_loader, _test_loader, meta = build_dataloaders(
+    train_loader, val_loader, _test_loader, meta = build_training_dataloaders(
         csv_path=args.csv_path,
         scaler_path=args.scaler_path,
         batch_size=args.batch_size,
@@ -267,18 +136,26 @@ def main() -> None:
     )
     logger.info(
         "Class balance (train windows): pos=%d neg=%d pos_weight=%.4f",
-        meta["train_positives"],
-        meta["train_negatives"],
-        meta["pos_weight"],
+        meta.train_positives,
+        meta.train_negatives,
+        meta.pos_weight,
     )
 
     model = AnomalyDetectorMLP(
-        input_dim=meta["input_dim"],
-        hidden_dims=(64, 32),
+        input_dim=meta.input_dim,
+        hidden_dims=tuple(args.hidden_dims),
         dropout=args.dropout,
     ).to(device)
+    num_params = sum(p.numel() for p in model.parameters())
+    logger.info(
+        "AnomalyDetectorMLP instantiated: input_dim=%d hidden_dims=%s dropout=%.2f params=%d",
+        meta.input_dim,
+        tuple(args.hidden_dims),
+        args.dropout,
+        num_params,
+    )
 
-    effective_pos_weight = meta["pos_weight"] * args.pos_weight_scale
+    effective_pos_weight = meta.pos_weight * args.pos_weight_scale
     pos_weight = torch.tensor(
         [effective_pos_weight], dtype=torch.float32, device=device
     )
@@ -286,74 +163,49 @@ def main() -> None:
     logger.info(
         "Effective pos_weight=%.4f (raw=%.4f scale=%.2f)",
         effective_pos_weight,
-        meta["pos_weight"],
+        meta.pos_weight,
         args.pos_weight_scale,
     )
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
-    stopper = EarlyStopping(patience=args.patience)
-
-    history = EpochMetrics()
-
-    for epoch in range(1, args.epochs + 1):
-        train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss, val_f1, val_precision, val_recall = evaluate(
-            model, val_loader, criterion, device, threshold=args.decision_threshold
-        )
-        history.train_loss.append(train_loss)
-        history.val_loss.append(val_loss)
-        history.val_f1.append(val_f1)
-        history.val_precision.append(val_precision)
-        history.val_recall.append(val_recall)
-
-        improved = stopper.step(val_f1, model)
-        marker = " *best" if improved else ""
-        logger.info(
-            "epoch=%03d | train_loss=%.4f | val_loss=%.4f | val_f1=%.4f "
-            "| val_precision=%.4f | val_recall=%.4f%s",
-            epoch,
-            train_loss,
-            val_loss,
-            val_f1,
-            val_precision,
-            val_recall,
-            marker,
-        )
-        if stopper.should_stop:
-            logger.info(
-                "Early stopping at epoch=%d (best val_f1=%.4f)",
-                epoch,
-                stopper.best_score,
-            )
-            break
-
-    if stopper.best_state is None:
-        logger.warning("Training finished without an improvement step; saving last state")
-        best_state = model.state_dict()
-    else:
-        best_state = stopper.best_state
+    best_state, best_val_f1, history = run_training_loop(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=device,
+        config=TrainLoopConfig(
+            epochs=args.epochs,
+            patience=args.patience,
+            decision_threshold=args.decision_threshold,
+        ),
+        model_label="MLP",
+    )
 
     args.model_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
+            "model_type": "mlp",
             "model_state_dict": best_state,
-            "input_dim": meta["input_dim"],
-            "hidden_dims": (64, 32),
+            "input_dim": meta.input_dim,
+            "hidden_dims": tuple(args.hidden_dims),
             "dropout": args.dropout,
-            "window_size": meta["window_size"],
-            "num_features": meta["num_features"],
-            "best_val_f1": stopper.best_score,
+            "window_size": meta.window_size,
+            "num_features": meta.num_features,
+            "best_val_f1": best_val_f1,
             "decision_threshold": args.decision_threshold,
             "pos_weight_scale": args.pos_weight_scale,
             "effective_pos_weight": effective_pos_weight,
+            "num_params": num_params,
         },
         args.model_path,
     )
     logger.info(
         "Saved best checkpoint to %s (best val_f1=%.4f)",
         args.model_path,
-        stopper.best_score,
+        best_val_f1,
     )
 
     plot_curves(history, args.curves_path)

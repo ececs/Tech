@@ -11,9 +11,12 @@ Covers:
 from __future__ import annotations
 
 import os
+import sys
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
+
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -26,10 +29,14 @@ from src.dataset import (
     FEATURE_COLS,
     TARGET_COL,
     ServidorDataset,
+    build_inference_dataloaders,
     fit_scaler,
+    save_scaler,
     temporal_split,
 )
+from src.evaluate import load_checkpoint, main as evaluate_main
 from src.model import AnomalyDetectorGRU, AnomalyDetectorMLP
+from src.train import main as train_main
 
 
 @pytest.mark.parametrize("batch_size", [1, 8, 32, 128])
@@ -53,6 +60,29 @@ def test_model_rejects_wrong_input_dim() -> None:
     model.eval()
     with pytest.raises(RuntimeError):
         model(torch.randn(4, 19))
+
+
+@pytest.mark.parametrize(
+    ("input_dim", "hidden_dims", "dropout"),
+    [
+        (0, (64, 32), 0.3),
+        (20, (64, 0), 0.3),
+        (20, (64, 32), -0.1),
+        (20, (64, 32), 1.0),
+    ],
+)
+def test_mlp_rejects_invalid_hyperparameters(
+    input_dim: int,
+    hidden_dims: tuple[int, int],
+    dropout: float,
+) -> None:
+    """Constructor must fail fast on invalid MLP hyperparameters."""
+    with pytest.raises(ValueError):
+        AnomalyDetectorMLP(
+            input_dim=input_dim,
+            hidden_dims=hidden_dims,
+            dropout=dropout,
+        )
 
 
 @pytest.mark.parametrize("batch_size", [1, 8, 32, 128])
@@ -124,6 +154,8 @@ def test_gru_rejects_invalid_hyperparameters() -> None:
         AnomalyDetectorGRU(num_features=0)
     with pytest.raises(ValueError):
         AnomalyDetectorGRU(hidden_size=-1)
+    with pytest.raises(ValueError):
+        AnomalyDetectorGRU(dropout=1.2)
 
 
 def _synthetic_frame(num_rows: int = 50) -> pd.DataFrame:
@@ -218,3 +250,108 @@ def test_fit_scaler_uses_only_training_rows() -> None:
         rtol=0,
         atol=1e-9,
     )
+
+
+def test_inference_dataloaders_use_persisted_scaler(tmp_path: Path) -> None:
+    """Inference must reuse the saved scaler rather than refitting a new one."""
+    df = _synthetic_frame(num_rows=100)
+    csv_path = tmp_path / "telemetry.csv"
+    scaler_path = tmp_path / "scaler.joblib"
+    df.to_csv(csv_path, index=False)
+
+    train_df, _val_df, _test_df = temporal_split(df, train_ratio=0.70, val_ratio=0.15)
+    scaler = fit_scaler(train_df)
+    scaler.min_ = np.full_like(scaler.min_, 123.0)
+    scaler.scale_ = np.full_like(scaler.scale_, 0.5)
+    save_scaler(scaler, scaler_path)
+
+    _train_loader, _val_loader, test_loader, meta = build_inference_dataloaders(
+        csv_path=csv_path,
+        scaler_path=scaler_path,
+        batch_size=16,
+        window_size=5,
+        num_workers=0,
+    )
+
+    assert meta.test_windows == len(test_loader.dataset)
+    x0, _y0 = test_loader.dataset[0]
+
+    test_start = int(len(df) * 0.70) + int(len(df) * 0.15)
+    expected_raw = df.iloc[test_start : test_start + 5][FEATURE_COLS].to_numpy(dtype=np.float64)
+    expected_scaled = scaler.transform(expected_raw).reshape(-1).astype(np.float32)
+    np.testing.assert_allclose(x0.numpy(), expected_scaled, rtol=0, atol=1e-6)
+
+
+def test_end_to_end_train_and_evaluate_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Training and evaluation CLIs should produce reusable artefacts end-to-end."""
+    df = _synthetic_frame(num_rows=120)
+    csv_path = tmp_path / "telemetry.csv"
+    scaler_path = tmp_path / "scaler.joblib"
+    model_path = tmp_path / "best_model.pth"
+    curves_path = tmp_path / "curves.png"
+    cm_path = tmp_path / "confusion.png"
+    df.to_csv(csv_path, index=False)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train",
+            "--csv-path",
+            str(csv_path),
+            "--scaler-path",
+            str(scaler_path),
+            "--model-path",
+            str(model_path),
+            "--curves-path",
+            str(curves_path),
+            "--epochs",
+            "2",
+            "--patience",
+            "1",
+            "--batch-size",
+            "16",
+            "--hidden-dims",
+            "32",
+            "16",
+            "--lr",
+            "0.001",
+            "--dropout",
+            "0.2",
+            "--log-level",
+            "ERROR",
+        ],
+    )
+    train_main()
+
+    assert scaler_path.exists()
+    assert model_path.exists()
+    assert curves_path.exists()
+
+    model, ckpt = load_checkpoint(model_path, torch.device("cpu"))
+    assert ckpt["model_type"] == "mlp"
+    assert tuple(ckpt["hidden_dims"]) == (32, 16)
+    assert model.training is False
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evaluate",
+            "--csv-path",
+            str(csv_path),
+            "--scaler-path",
+            str(scaler_path),
+            "--checkpoint",
+            str(model_path),
+            "--cm-path",
+            str(cm_path),
+            "--batch-size",
+            "16",
+            "--log-level",
+            "ERROR",
+        ],
+    )
+    evaluate_main()
+
+    assert cm_path.exists()

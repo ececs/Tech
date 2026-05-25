@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Final
 
 import joblib
@@ -30,6 +31,21 @@ FEATURE_COLS: Final[list[str]] = [
 ]
 TARGET_COL: Final[str] = "failure"
 WINDOW_SIZE: Final[int] = 5
+
+
+@dataclass(frozen=True)
+class LoaderMetadata:
+    """Structured metadata returned alongside the DataLoaders."""
+
+    pos_weight: float
+    train_positives: int
+    train_negatives: int
+    train_windows: int
+    val_windows: int
+    test_windows: int
+    input_dim: int
+    num_features: int
+    window_size: int
 
 
 class ServidorDataset(Dataset):
@@ -216,40 +232,16 @@ def _transform_split(
     return features, labels
 
 
-def build_dataloaders(
-    csv_path: Path,
-    scaler_path: Path,
-    batch_size: int = 128,
-    window_size: int = WINDOW_SIZE,
-    train_ratio: float = 0.70,
-    val_ratio: float = 0.15,
-    num_workers: int = 0,
-) -> tuple[DataLoader, DataLoader, DataLoader, dict]:
-    """Build the train/val/test DataLoaders and return training metadata.
-
-    The scaler is fit on the training split only and persisted to
-    ``scaler_path`` for reuse during inference.
-
-    Args:
-        csv_path: Path to the raw telemetry CSV.
-        scaler_path: Destination for the fitted scaler artifact.
-        batch_size: Mini-batch size for all loaders.
-        window_size: Sliding-window length.
-        train_ratio: Fraction of rows for training.
-        val_ratio: Fraction of rows for validation.
-        num_workers: DataLoader worker processes.
-
-    Returns:
-        Tuple ``(train_loader, val_loader, test_loader, metadata)`` where
-        ``metadata`` contains ``pos_weight``, class counts, ``input_dim``
-        and ``num_features``.
-    """
-    df = load_raw_dataframe(csv_path)
-    train_df, val_df, test_df = temporal_split(df, train_ratio, val_ratio)
-
-    scaler = fit_scaler(train_df)
-    save_scaler(scaler, scaler_path)
-
+def _build_loaders_from_splits(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    scaler: MinMaxScaler,
+    batch_size: int,
+    window_size: int,
+    num_workers: int,
+) -> tuple[DataLoader, DataLoader, DataLoader, LoaderMetadata]:
+    """Transform splits, build datasets/loaders and compute metadata."""
     train_x, train_y = _transform_split(train_df, scaler)
     val_x, val_y = _transform_split(val_df, scaler)
     test_x, test_y = _transform_split(test_df, scaler)
@@ -283,24 +275,73 @@ def build_dataloaders(
         num_workers=num_workers,
     )
 
-    metadata: dict = {
-        "pos_weight": pos_weight,
-        "train_positives": positives,
-        "train_negatives": negatives,
-        "train_windows": len(train_ds),
-        "val_windows": len(val_ds),
-        "test_windows": len(test_ds),
-        "input_dim": train_ds.input_dim,
-        "num_features": len(FEATURE_COLS),
-        "window_size": window_size,
-    }
+    metadata = LoaderMetadata(
+        pos_weight=pos_weight,
+        train_positives=positives,
+        train_negatives=negatives,
+        train_windows=len(train_ds),
+        val_windows=len(val_ds),
+        test_windows=len(test_ds),
+        input_dim=train_ds.input_dim,
+        num_features=len(FEATURE_COLS),
+        window_size=window_size,
+    )
     logger.info(
         "Built dataloaders: train_windows=%d val_windows=%d test_windows=%d "
         "pos_weight=%.4f input_dim=%d",
-        metadata["train_windows"],
-        metadata["val_windows"],
-        metadata["test_windows"],
-        metadata["pos_weight"],
-        metadata["input_dim"],
+        metadata.train_windows,
+        metadata.val_windows,
+        metadata.test_windows,
+        metadata.pos_weight,
+        metadata.input_dim,
     )
     return train_loader, val_loader, test_loader, metadata
+
+
+def build_training_dataloaders(
+    csv_path: Path,
+    scaler_path: Path,
+    batch_size: int = 128,
+    window_size: int = WINDOW_SIZE,
+    train_ratio: float = 0.70,
+    val_ratio: float = 0.15,
+    num_workers: int = 0,
+) -> tuple[DataLoader, DataLoader, DataLoader, LoaderMetadata]:
+    """Build loaders for training and persist a scaler fitted on train only."""
+    df = load_raw_dataframe(csv_path)
+    train_df, val_df, test_df = temporal_split(df, train_ratio, val_ratio)
+    scaler = fit_scaler(train_df)
+    save_scaler(scaler, scaler_path)
+    return _build_loaders_from_splits(
+        train_df=train_df,
+        val_df=val_df,
+        test_df=test_df,
+        scaler=scaler,
+        batch_size=batch_size,
+        window_size=window_size,
+        num_workers=num_workers,
+    )
+
+
+def build_inference_dataloaders(
+    csv_path: Path,
+    scaler_path: Path,
+    batch_size: int = 128,
+    window_size: int = WINDOW_SIZE,
+    train_ratio: float = 0.70,
+    val_ratio: float = 0.15,
+    num_workers: int = 0,
+) -> tuple[DataLoader, DataLoader, DataLoader, LoaderMetadata]:
+    """Build loaders for evaluation/inference using an already persisted scaler."""
+    df = load_raw_dataframe(csv_path)
+    train_df, val_df, test_df = temporal_split(df, train_ratio, val_ratio)
+    scaler = load_scaler(scaler_path)
+    return _build_loaders_from_splits(
+        train_df=train_df,
+        val_df=val_df,
+        test_df=test_df,
+        scaler=scaler,
+        batch_size=batch_size,
+        window_size=window_size,
+        num_workers=num_workers,
+    )

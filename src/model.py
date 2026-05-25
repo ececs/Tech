@@ -41,10 +41,18 @@ class AnomalyDetectorMLP(nn.Module):
         dropout: float = 0.3,
     ) -> None:
         super().__init__()
+        if input_dim <= 0:
+            raise ValueError(f"input_dim must be > 0, got {input_dim}")
         if len(hidden_dims) != 2:
             raise ValueError(
                 f"hidden_dims must be a 2-tuple, got {hidden_dims!r}"
             )
+        if any(dim <= 0 for dim in hidden_dims):
+            raise ValueError(
+                f"hidden_dims must contain positive values, got {hidden_dims!r}"
+            )
+        if not 0.0 <= dropout < 1.0:
+            raise ValueError(f"dropout must be in [0, 1), got {dropout}")
         h1, h2 = hidden_dims
         self.net = nn.Sequential(
             nn.Linear(input_dim, h1),
@@ -127,6 +135,8 @@ class AnomalyDetectorGRU(nn.Module):
                 "num_features, seq_len, hidden_size and num_layers must be > 0; "
                 f"got {num_features=}, {seq_len=}, {hidden_size=}, {num_layers=}"
             )
+        if not 0.0 <= dropout < 1.0:
+            raise ValueError(f"dropout must be in [0, 1), got {dropout}")
 
         self.num_features = num_features
         self.seq_len = seq_len

@@ -41,9 +41,9 @@ from sklearn.metrics import (
 )
 from torch.utils.data import DataLoader
 
-from src.dataset import build_dataloaders
+from src.dataset import build_inference_dataloaders
 from src.model import AnomalyDetectorGRU, AnomalyDetectorMLP
-from src.train import get_device
+from src.training_common import get_device
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +229,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def validate_args(args: argparse.Namespace) -> None:
+    """Fail fast on invalid evaluation CLI arguments."""
+    if args.batch_size <= 0:
+        raise ValueError(f"--batch-size must be > 0, got {args.batch_size}")
+    if args.threshold is not None and not 0.0 <= args.threshold <= 1.0:
+        raise ValueError(f"--threshold must be in [0, 1], got {args.threshold}")
+
+
 def main() -> None:
     """Run evaluation on the test split."""
     args = parse_args()
@@ -236,6 +244,7 @@ def main() -> None:
         level=getattr(logging, args.log_level),
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
     )
+    validate_args(args)
 
     device = get_device()
     logger.info("Evaluation device: %s", device)
@@ -270,7 +279,7 @@ def main() -> None:
     )
 
     window_size = int(ckpt.get("window_size") or ckpt.get("seq_len") or 5)
-    _train_loader, _val_loader, test_loader, meta = build_dataloaders(
+    _train_loader, _val_loader, test_loader, meta = build_inference_dataloaders(
         csv_path=args.csv_path,
         scaler_path=args.scaler_path,
         batch_size=args.batch_size,
@@ -279,8 +288,8 @@ def main() -> None:
     )
     logger.info(
         "Test split: windows=%d positives_rate=%.4f",
-        meta["test_windows"],
-        np.mean([y.item() for _, y in test_loader.dataset]),
+        meta.test_windows,
+        float(np.mean(test_loader.dataset.window_labels)),
     )
 
     scores, preds, labels = predict(model, test_loader, device, threshold)

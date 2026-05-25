@@ -34,9 +34,9 @@ from sklearn.metrics import precision_recall_curve
 from torch import nn
 from torch.utils.data import DataLoader
 
-from src.dataset import build_dataloaders
+from src.dataset import build_training_dataloaders
 from src.model import AnomalyDetectorMLP
-from src.train import (
+from src.training_common import (
     EarlyStopping,
     evaluate,
     get_device,
@@ -136,19 +136,19 @@ def run_single_config(
 ) -> SweepRun:
     """Train a single configuration and return its measured outcome."""
     set_seed(seed)
-    train_loader, val_loader, _test_loader, meta = build_dataloaders(
+    train_loader, val_loader, _test_loader, meta = build_training_dataloaders(
         csv_path=csv_path,
         scaler_path=scaler_path,
         batch_size=batch_size,
         num_workers=0,
     )
     model = AnomalyDetectorMLP(
-        input_dim=meta["input_dim"],
+        input_dim=meta.input_dim,
         hidden_dims=hidden_dims,
         dropout=dropout,
     ).to(device)
 
-    effective_pos_weight = meta["pos_weight"] * pos_weight_scale
+    effective_pos_weight = meta.pos_weight * pos_weight_scale
     pos_weight_tensor = torch.tensor(
         [effective_pos_weight], dtype=torch.float32, device=device
     )
@@ -252,6 +252,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def validate_args(args: argparse.Namespace) -> None:
+    """Fail fast on invalid sweep CLI arguments."""
+    if args.epochs <= 0:
+        raise ValueError(f"--epochs must be > 0, got {args.epochs}")
+    if args.patience <= 0:
+        raise ValueError(f"--patience must be > 0, got {args.patience}")
+    if args.weight_decay < 0:
+        raise ValueError(f"--weight-decay must be >= 0, got {args.weight_decay}")
+
+
 def main() -> None:
     """Run the full sweep."""
     args = parse_args()
@@ -259,6 +269,7 @@ def main() -> None:
         level=getattr(logging, args.log_level),
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
     )
+    validate_args(args)
     device = get_device()
     logger.info("Sweep device: %s", device)
 
@@ -271,7 +282,7 @@ def main() -> None:
     logging.getLogger("src.train").setLevel(logging.WARNING)
 
     best_overall: SweepRun | None = None
-    with args.output.open("w") as fh:
+    with args.output.open("a", encoding="utf-8") as fh:
         for idx, config in enumerate(grid, start=1):
             logger.info("[%03d/%03d] %s", idx, len(grid), config)
             run = run_single_config(

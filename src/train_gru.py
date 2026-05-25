@@ -30,16 +30,15 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from src.dataset import build_dataloaders
+from src.dataset import build_training_dataloaders
 from src.model import AnomalyDetectorGRU
-from src.train import (
-    EarlyStopping,
-    EpochMetrics,
-    evaluate,
+from src.train import validate_args
+from src.training_common import (
+    TrainLoopConfig,
     get_device,
     plot_curves,
+    run_training_loop,
     set_seed,
-    train_one_epoch,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,12 +105,17 @@ def main() -> None:
         level=getattr(logging, args.log_level),
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
     )
+    validate_args(args)
+    if args.hidden_size <= 0:
+        raise ValueError(f"--hidden-size must be > 0, got {args.hidden_size}")
+    if args.num_layers <= 0:
+        raise ValueError(f"--num-layers must be > 0, got {args.num_layers}")
     set_seed(args.seed)
 
     device = get_device()
     logger.info("Using device: %s", device)
 
-    train_loader, val_loader, _test_loader, meta = build_dataloaders(
+    train_loader, val_loader, _test_loader, meta = build_training_dataloaders(
         csv_path=args.csv_path,
         scaler_path=args.scaler_path,
         batch_size=args.batch_size,
@@ -119,14 +123,14 @@ def main() -> None:
     )
     logger.info(
         "Class balance (train windows): pos=%d neg=%d pos_weight=%.4f",
-        meta["train_positives"],
-        meta["train_negatives"],
-        meta["pos_weight"],
+        meta.train_positives,
+        meta.train_negatives,
+        meta.pos_weight,
     )
 
     model = AnomalyDetectorGRU(
-        num_features=meta["num_features"],
-        seq_len=meta["window_size"],
+        num_features=meta.num_features,
+        seq_len=meta.window_size,
         hidden_size=args.hidden_size,
         num_layers=args.num_layers,
         dropout=args.dropout,
@@ -135,15 +139,15 @@ def main() -> None:
     logger.info(
         "AnomalyDetectorGRU instantiated: num_features=%d seq_len=%d "
         "hidden_size=%d num_layers=%d dropout=%.2f params=%d",
-        meta["num_features"],
-        meta["window_size"],
+        meta.num_features,
+        meta.window_size,
         args.hidden_size,
         args.num_layers,
         args.dropout,
         num_params,
     )
 
-    effective_pos_weight = meta["pos_weight"] * args.pos_weight_scale
+    effective_pos_weight = meta.pos_weight * args.pos_weight_scale
     pos_weight = torch.tensor(
         [effective_pos_weight], dtype=torch.float32, device=device
     )
@@ -151,65 +155,38 @@ def main() -> None:
     logger.info(
         "Effective pos_weight=%.4f (raw=%.4f scale=%.2f)",
         effective_pos_weight,
-        meta["pos_weight"],
+        meta.pos_weight,
         args.pos_weight_scale,
     )
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
-    stopper = EarlyStopping(patience=args.patience)
-
-    history = EpochMetrics()
-
-    for epoch in range(1, args.epochs + 1):
-        train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss, val_f1, val_precision, val_recall = evaluate(
-            model, val_loader, criterion, device, threshold=args.decision_threshold
-        )
-        history.train_loss.append(train_loss)
-        history.val_loss.append(val_loss)
-        history.val_f1.append(val_f1)
-        history.val_precision.append(val_precision)
-        history.val_recall.append(val_recall)
-
-        improved = stopper.step(val_f1, model)
-        marker = " *best" if improved else ""
-        logger.info(
-            "epoch=%03d | train_loss=%.4f | val_loss=%.4f | val_f1=%.4f "
-            "| val_precision=%.4f | val_recall=%.4f%s",
-            epoch,
-            train_loss,
-            val_loss,
-            val_f1,
-            val_precision,
-            val_recall,
-            marker,
-        )
-        if stopper.should_stop:
-            logger.info(
-                "Early stopping at epoch=%d (best val_f1=%.4f)",
-                epoch,
-                stopper.best_score,
-            )
-            break
-
-    if stopper.best_state is None:
-        logger.warning("Training finished without an improvement step; saving last state")
-        best_state = model.state_dict()
-    else:
-        best_state = stopper.best_state
+    best_state, best_val_f1, history = run_training_loop(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=device,
+        config=TrainLoopConfig(
+            epochs=args.epochs,
+            patience=args.patience,
+            decision_threshold=args.decision_threshold,
+        ),
+        model_label="GRU",
+    )
 
     args.model_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
             "model_type": "gru",
             "model_state_dict": best_state,
-            "num_features": meta["num_features"],
-            "seq_len": meta["window_size"],
+            "num_features": meta.num_features,
+            "seq_len": meta.window_size,
             "hidden_size": args.hidden_size,
             "num_layers": args.num_layers,
             "dropout": args.dropout,
-            "best_val_f1": stopper.best_score,
+            "best_val_f1": best_val_f1,
             "decision_threshold": args.decision_threshold,
             "pos_weight_scale": args.pos_weight_scale,
             "effective_pos_weight": effective_pos_weight,
@@ -220,7 +197,7 @@ def main() -> None:
     logger.info(
         "Saved best GRU checkpoint to %s (best val_f1=%.4f, params=%d)",
         args.model_path,
-        stopper.best_score,
+        best_val_f1,
         num_params,
     )
 
