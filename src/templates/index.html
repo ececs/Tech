@@ -548,18 +548,11 @@
         </article>
       </section>
 
-      <section id="trend-chart-wrap" class="panel hidden">
-        <h2>Trend Window Result</h2>
-        <p class="muted" id="trend-result-meta">--</p>
-        <div class="chart-wrap">
-          <canvas id="trend-chart"></canvas>
-        </div>
-      </section>
-
       <section class="panel">
-        <h2>Batch Temporal View</h2>
-        <p class="muted">
-          CPU temp in orange, CPU usage in blue, predicted anomalies as red scatter markers.
+        <h2>Temporal View</h2>
+        <p class="muted" id="temporal-view-meta">
+          Renders either the trend window (after pressing Apply trend) or the full
+          CSV batch result. Anomalies are highlighted in red.
         </p>
         <div class="chart-wrap">
           <canvas id="timeline-chart"></canvas>
@@ -697,9 +690,8 @@
       const chatSend = document.getElementById("chat-send");
       const trendBtn = document.getElementById("trend-btn");
       const trendHint = document.getElementById("trend-hint");
-      const trendChartWrap = document.getElementById("trend-chart-wrap");
-      const trendResultMeta = document.getElementById("trend-result-meta");
-      let trendChart = null;
+      const temporalViewMeta = document.getElementById("temporal-view-meta");
+      const TEMPORAL_VIEW_DEFAULT_META = temporalViewMeta.textContent;
 
       let selectedFile = null;
       let latestSessionId = null;
@@ -805,7 +797,6 @@
       };
 
       const renderTrendChart = (readings, probability, predicted, threshold) => {
-        trendChartWrap.classList.remove("hidden");
         const labels = readings.map((_, index) => {
           const offset = readings.length - 1 - index;
           return offset === 0 ? "t" : `t-${offset}`;
@@ -891,10 +882,10 @@
           },
         ];
 
-        if (trendChart) {
-          trendChart.destroy();
+        if (chart) {
+          chart.destroy();
         }
-        trendChart = new Chart(document.getElementById("trend-chart"), {
+        chart = new Chart(document.getElementById("timeline-chart"), {
           type: "line",
           data: { labels, datasets },
           options: {
@@ -929,8 +920,8 @@
 
         const verdict = predicted === 1 ? "ANOMALY risk" : "stable";
         const last = readings[readings.length - 1];
-        trendResultMeta.textContent =
-          `Window of ${readings.length} reading${readings.length === 1 ? "" : "s"} · ` +
+        temporalViewMeta.textContent =
+          `Trend window · ${readings.length} reading${readings.length === 1 ? "" : "s"} · ` +
           `last: CPU ${last.cpu_usage.toFixed(1)}% · Mem ${last.mem_usage.toFixed(1)}% · ` +
           `Temp ${last.cpu_temp.toFixed(1)}°C · ` +
           `probability ${(probability * 100).toFixed(2)}% (thr ${threshold.toFixed(2)}) → ${verdict}`;
@@ -967,8 +958,7 @@
           );
         } catch (error) {
           renderPredictionError(error.message);
-          trendResultMeta.textContent = `Trend prediction failed: ${error.message}`;
-          trendChartWrap.classList.remove("hidden");
+          temporalViewMeta.textContent = `Trend prediction failed: ${error.message}`;
         } finally {
           trendBtn.disabled = false;
           trendBtn.textContent = previousLabel;
@@ -1017,6 +1007,11 @@
             x: record.timestamp,
             y: Number(record.cpu_temp),
           }));
+        const anomalyCount = anomalyPoints.length;
+        temporalViewMeta.textContent =
+          `Batch result · ${records.length} rows · ${anomalyCount} anomal${
+            anomalyCount === 1 ? "y" : "ies"
+          } highlighted in red`;
 
         if (chart) {
           chart.destroy();
