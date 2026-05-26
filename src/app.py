@@ -103,6 +103,8 @@ class UploadRecord(BaseModel):
     idx: int
     timestamp: str
     cpu_usage: float
+    mem_usage: float
+    network_traffic: float
     cpu_temp: float
     prob: float
     prediction: int

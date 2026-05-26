@@ -432,7 +432,16 @@ def infer_uploaded_dataframe(
     summary = summarize_processed_dataframe(processed_df)
     records = (
         processed_df[
-            ["idx", "timestamp", "cpu_usage", "cpu_temp", "probability", "prediction"]
+            [
+                "idx",
+                "timestamp",
+                "cpu_usage",
+                "mem_usage",
+                "network_traffic",
+                "cpu_temp",
+                "probability",
+                "prediction",
+            ]
         ]
         .assign(
             timestamp=lambda frame: frame["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S"),

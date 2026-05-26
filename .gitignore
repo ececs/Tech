@@ -18,19 +18,18 @@ __pycache__/
 
 # Archivos de modelos y checkpoints
 *.pth
+!best_model_gru.pth
 *.pt
 *.bin
 *.pkl
 
 # Visualizaciones y outputs locales
-training_curves.png
-training_curves_gru.png
 temp_data.txt
 results/
 *.jsonl
+!sweep_results_cuda.jsonl
+!sweep_results.jsonl
 *.parquet
-sweep_results.jsonl
-sweep_log.txt
 artifacts/
 .claude/
 
@@ -40,6 +39,15 @@ data/
 
 # Datos privados de agentes
 .internal/
+PLANIFICACION.md
+PREPARACION.md
+DIARIO_PROYECTO.md
+INTERVIEW_GUIDE.md
+DEMO_CHECKLIST.md
+GUION_VIDEO.md
+PROYECTOS_REUTILIZABLES.md
+DB_VECTORIAL.md
+DELIVERY.md
 
 # Recursos externos clonados
 LLMs-from-scratch/

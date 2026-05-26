@@ -1451,6 +1451,8 @@
         const labels = records.map((record) => record.timestamp);
         const cpuTemp = records.map((record) => Number(record.cpu_temp));
         const cpuUsage = records.map((record) => Number(record.cpu_usage));
+        const memUsage = records.map((record) => Number(record.mem_usage));
+        const networkTraffic = records.map((record) => Number(record.network_traffic));
         const anomalyPoints = records
           .filter((record) => record.prediction === 1)
           .map((record) => ({
@@ -1473,19 +1475,40 @@
             labels,
             datasets: [
               {
-                label: "CPU Temp",
+                label: "Temp CPU (°C)",
                 data: cpuTemp,
                 borderColor: "#f4a261",
                 backgroundColor: "rgba(244, 162, 97, 0.18)",
                 tension: 0.25,
+                borderWidth: 2,
                 pointRadius: 0,
               },
               {
-                label: "CPU Usage",
+                label: "Uso CPU (%)",
                 data: cpuUsage,
                 borderColor: "#59c3c3",
                 backgroundColor: "rgba(89, 195, 195, 0.18)",
                 tension: 0.25,
+                borderWidth: 2,
+                pointRadius: 0,
+              },
+              {
+                label: "Uso memoria (%)",
+                data: memUsage,
+                borderColor: "#e76f51",
+                backgroundColor: "rgba(231, 111, 81, 0.16)",
+                tension: 0.25,
+                borderWidth: 2,
+                pointRadius: 0,
+              },
+              {
+                label: "Red (MB/s)",
+                data: networkTraffic,
+                borderColor: "#2a9d8f",
+                backgroundColor: "rgba(42, 157, 143, 0.12)",
+                tension: 0.25,
+                borderWidth: 1.5,
+                borderDash: [5, 4],
                 pointRadius: 0,
               },
               {
